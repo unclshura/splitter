@@ -26,6 +26,9 @@ This tool is intended for creators, archivists, and automation workflows that ne
 - FFmpeg and FFprobe installed and available in the system PATH
 - .NET 10 SDK or newer
 
+>Note: You must download YuNet ONNX model:
+https://github.com/opencv/opencv_zoo/tree/master/models/face_detection_yunet (github.com in Bing)
+
 ---
 
 ## Usage
