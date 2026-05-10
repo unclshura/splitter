@@ -1,23 +1,18 @@
 ﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using OpenCvSharp;
-using Cv = OpenCvSharp.Cv2;
-using Mat = OpenCvSharp.Mat;
-using CvPoint = OpenCvSharp.Point;
-using CvRect = OpenCvSharp.Rect;
 
 namespace splitter;
 
-public class FaceTracker
+public class TrackingSplitter(
+    Action<string/*level*/, ConsoleColor /*color*/, string /*message*/> log,
+    Action<double /*percent*/, TimeSpan /*duration*/, double /*fps*/> drawProgress
+    ) : LoggingBase(log, drawProgress)
 {
-    public Action<double, TimeSpan, double> DrawProgress { get; init; } = (_, _, _) => { };
-
-    private static Rect ToCvRect(splitter.Rect r)
-        => new Rect(r.X, r.Y, r.Width, r.Height);
-
-    public async Task TrackFaceAndExtract(
+    public async Task TrackAndExtract(
         string srcFileName,
         string destFileName,
+        IObjectDetector detector,
         TimeSpan skip,
         TimeSpan duration,
         int cropWidth,
@@ -26,7 +21,7 @@ public class FaceTracker
         bool debugOverlay)
     {
         // ------------------------------
-        // 1. OpenCV VideoCapture (stable)
+        // OpenCV VideoCapture (stable)
         // ------------------------------
         using var capture = new VideoCapture(srcFileName);
         if (!capture.IsOpened())
@@ -34,22 +29,21 @@ public class FaceTracker
 
         capture.Set(VideoCaptureProperties.PosMsec, skip.TotalMilliseconds);
 
-        var videoWidth = (int)capture.Get(VideoCaptureProperties.FrameWidth);
+        var videoWidth  = (int)capture.Get(VideoCaptureProperties.FrameWidth);
         var videoHeight = (int)capture.Get(VideoCaptureProperties.FrameHeight);
-        var fps = capture.Get(VideoCaptureProperties.Fps);
+        var fps         = capture.Get(VideoCaptureProperties.Fps);
         var totalFrames = (int)(duration.TotalSeconds * fps);
+
+        if ( debugOverlay )
+        {
+            cropHeight = videoHeight;
+            cropWidth = videoWidth;
+        }
 
         Console.WriteLine($"[FaceTracker] skip={skip}, duration={duration}, fps={fps}, totalFrames={totalFrames}");
 
         // ------------------------------
-        // 2. UltraFaceDetector (new model)
-        // ------------------------------
-        using var detector = new UltraFaceDetector(
-            binPath: "slim_320.bin",
-            paramPath: "slim_320.param");
-
-        // ------------------------------
-        // 3. FFmpeg one-pass encoder
+        // FFmpeg one-pass encoder
         // ------------------------------
         var ffmpeg = StartFfmpegNvenc(
             srcFileName,
@@ -63,10 +57,10 @@ public class FaceTracker
         using var stdin = ffmpeg.StandardInput.BaseStream;
 
         // ------------------------------
-        // 4. Tracking state
+        // Tracking state
         // ------------------------------
         var frame = new Mat();
-        var kalman = new FaceKalmanTracker();
+        var kalman = new KalmanTracker();
         kalman.Reset(new Point2f(videoWidth / 2f, videoHeight / 2f));
 
         var lostFrames = 0;
@@ -78,7 +72,7 @@ public class FaceTracker
         var startTime = DateTime.UtcNow;
 
         // ------------------------------
-        // 5. Main loop
+        // Main loop
         // ------------------------------
         for (var i = 0; i < totalFrames; i++)
         {
@@ -88,28 +82,23 @@ public class FaceTracker
             // Ensure continuous memory for detector
             Mat frameCont = frame.IsContinuous() ? frame : frame.Clone();
 
-            // Convert to byte[] for UltraFace
-            var bytesFull = frameCont.Rows * frameCont.Cols * frameCont.ElemSize();
-            var bufferFull = new byte[bytesFull];
-            Marshal.Copy(frameCont.Data, bufferFull, 0, bytesFull);
+            Rect? objectBox = null;
+            Point2f? objectCenter = null;
 
-            Rect? faceBox = null;
-            Point2f? faceCenter = null;
+            var objects = detector.DetectAll(frameCont, videoWidth, videoHeight); // list of (box, center)
 
-            var faces = detector.DetectAll(bufferFull, videoWidth, videoHeight); // list of (box, center)
-
-            var primary = SelectTrackedFace(faces, kalman.LastMeasurement);
+            var primary = SelectTrackedObject(objects, kalman.LastMeasurement);
 
             if (primary.HasValue)
             {
-                faceCenter = primary.Value.center;
-                faceBox = primary.Value.box;
+                objectCenter = primary.Value.center;
+                objectBox = primary.Value.box;
             }
 
 
-            var isLost = !faceCenter.HasValue;
+            var isLost = !objectCenter.HasValue;
 
-            // LOST FACE → drift toward center
+            // LOST OBJECT → drift toward center
             if (isLost)
             {
                 lostFrames++;
@@ -120,7 +109,7 @@ public class FaceTracker
                 var t = Math.Min(1f, lostFrames / 60f);
                 var ease = 0.02f * t;
 
-                faceCenter = new Point2f(
+                objectCenter = new Point2f(
                     predicted.X * (1 - ease) + fallbackCenter.X * ease,
                     predicted.Y * (1 - ease) + fallbackCenter.Y * ease);
             }
@@ -147,7 +136,7 @@ public class FaceTracker
 
             wasLost = isLost;
 
-            var smoothedCenter = kalman.Update(faceCenter);
+            var smoothedCenter = kalman.Update(objectCenter);
 
             var halfW = cropWidth / 2f;
             var halfH = cropHeight / 2f;
@@ -170,24 +159,24 @@ public class FaceTracker
             x = Math.Clamp(x, 0, videoWidth - cropWidth);
             y = Math.Clamp(y, 0, videoHeight - cropHeight);
 
-            var roi = new CvRect(x, y, cropWidth, cropHeight);
-            
+            var roi = new Rect(x, y, cropWidth, cropHeight);
+
             if (debugOverlay)
             {
-                if (faceBox.HasValue)
+                if (objectBox.HasValue)
                 {
-                    var fb = faceBox.Value;
-                    Cv.Rectangle(frameCont,
-                        new OpenCvSharp.Rect(fb.X, fb.Y, fb.Width, fb.Height),
+                    var fb = objectBox.Value;
+                    Cv2.Rectangle(frameCont,
+                        new Rect(fb.X, fb.Y, fb.Width, fb.Height),
                         Scalar.LimeGreen, 2);
                 }
 
-                Cv.Circle(frameCont,
-                    new CvPoint((int)smoothedCenter.X, (int)smoothedCenter.Y),
+                Cv2.Circle(frameCont,
+                    new Point((int)smoothedCenter.X, (int)smoothedCenter.Y),
                     6, Scalar.LimeGreen, -1);
 
-                Cv.Rectangle(frameCont, roi,
-                    faceCenter.HasValue ? Scalar.Yellow : Scalar.Red, 3);
+                Cv2.Rectangle(frameCont, roi,
+                    objectCenter.HasValue ? Scalar.Yellow : Scalar.Red, 3);
             }
 
             // Crop ROI
@@ -225,23 +214,23 @@ public class FaceTracker
             throw new Exception("FFmpeg NVENC encoding failed");
     }
 
-    private (Rect box, Point2f center)? SelectTrackedFace(
-        List<(Rect box, Point2f center)> faces,
+    private (Rect box, Point2f center)? SelectTrackedObject(
+        List<(Rect box, Point2f center)> foundObjects,
         Point2f? previousCenter)
     {
-        if (faces == null || faces.Count == 0)
+        if (foundObjects == null || foundObjects.Count == 0)
             return null;
 
         if (!previousCenter.HasValue)
         {
             // no previous face → pick largest
-            return faces
+            return foundObjects
                 .OrderByDescending(f => f.box.Width * f.box.Height)
                 .First();
         }
 
-        // pick the face closest to previous center
-        return faces
+        // pick the object closest to previous center
+        return foundObjects
             .OrderBy(f =>
             {
                 var dx = f.center.X - previousCenter.Value.X;

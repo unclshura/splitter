@@ -7,6 +7,8 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
   </PropertyGroup>
 
   <!-- DEBUG CONFIGURATION -->
@@ -32,16 +34,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="slim_320.bin">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="slim_320.param">
+    <Content Include="models/*.*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="FFmpeg.AutoGen" Version="8.1.0" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.24.4" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.24.4" />
     <PackageReference Include="OpenCvSharp4" Version="4.13.0.20260427" />
     <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.13.0.20260302" />
     <PackageReference Include="UltraFaceDotNet" Version="1.0.0.2" />

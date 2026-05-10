@@ -3,94 +3,28 @@ using System.Globalization;
 using System.Text;
 using splitter;
 
-class Program
+static class Program
 {
-    static int logLines = 0;
-    static bool plainText = false;
-    static readonly object consoleLock = new();
-    static bool progressRunning = true;
+    static int             _logLines        = 0;
+    static bool            _plainText       = false;
+    static readonly object _consoleLock     = new();
+    static bool            _progressRunning = true;
 
     static void Main(string[] args)
     {
-        double? overrideTargetDuration = null;
-        var estimateOnly = false;
-        var forceFixed = false;
+        var cmd = new CommandLine(args);
 
-
-        Console.OutputEncoding = Encoding.UTF8;
-
-        if (args.Length == 0 || args.Contains("--help"))
-        {
-            PrintHelp();
-            return;
-        }
-
-        // Extract passthrough parameters after "--"
-        var passthrough = Array.Empty<string>();
-        var passthroughIndex = Array.IndexOf(args, "--");
-
-        if (passthroughIndex >= 0)
-        {
-            if (passthroughIndex < args.Length - 1)
-                passthrough = args.Skip(passthroughIndex + 1).ToArray();
-
-            args = args.Take(passthroughIndex).ToArray();
-        }
-
-        if (args.Length < 2)
-        {
-            LogError("Missing required parameters.");
-            PrintHelp();
-            return;
-        }
-
-        var inputFile                 = args[0];
-        var outputFolder              = args[1];
-        (int width, int height)? crop = null;
-        string? mask                  = null;
-        var debug                     = false;
-
-        foreach (var arg in args.Skip(2))
-        {
-            if (arg.StartsWith("--mask="))
-            {
-                mask = arg.Substring("--mask=".Length);
-            }
-            else if (arg.StartsWith("--crop="))
-            {
-                crop = ParseCrop(arg.Substring("--crop=".Length));
-            }
-            else if (arg == "--crop")
-            {
-                crop = ParseCrop("");
-            }
-            else if (arg == "--text")
-            {
-                plainText = true;
-            }
-            else if (arg == "--debug")
-            {
-                debug = true;
-            }
-            else if (arg.StartsWith("--duration="))
-            {
-                var dur = arg.Substring("--duration=".Length);
-                overrideTargetDuration = ParseDuration(dur);
-                if (overrideTargetDuration <= 0)
-                {
-                    LogError($"Invalid --duration value: {dur}");
-                    return;
-                }
-            }
-            else if (arg == "--estimate")
-            {
-                estimateOnly = true;
-            }
-            else if (arg == "--force")
-            {
-                forceFixed = true;
-            }
-        }
+        var estimateOnly               = cmd.EstimateOnly;
+        var forceFixed                 = cmd.ForceFixed;
+        var passthrough                = cmd.Passthrough;
+        var inputFile                  = cmd.InputFile;
+        var outputFolder               = cmd.OutputFolder;
+        (int width, int height)? crop  = cmd.Crop;
+        string? mask                   = cmd.Mask;
+        var debug                      = cmd.Debug;
+        string? detect                 = cmd.Detect;
+        double? overrideTargetDuration = cmd.OverrideTargetDuration;
+        _plainText                     = cmd.PlainText;
 
         if (!File.Exists(inputFile))
         {
@@ -150,7 +84,7 @@ class Program
         if (crop != null)
         {
             LogInfo("Starting multi-threaded face tracking crop and splitting...");
-            RunMultiThreadedCrop(inputFile, outputFolder, outputMask, duration, segments, segmentLength, passthrough, crop.Value.width, crop.Value.height, debug);
+            RunMultiThreadedCrop(inputFile, outputFolder, outputMask, duration, segments, segmentLength, passthrough, crop.Value.width, crop.Value.height, debug, detect);
         }
         else
         {
@@ -159,40 +93,15 @@ class Program
         }
 
         LogSuccess("Done.");
-        progressRunning = false;
+        _progressRunning = false;
         // Move cursor below progress area
-        lock (consoleLock)
+        lock (_consoleLock)
         {
-            Console.SetCursorPosition(0, logLines + 4);
+            Console.SetCursorPosition(0, _logLines + 4);
             Console.WriteLine();
         }
     }
 
-    private static (int width, int height)? ParseCrop(string v)
-    {
-        // Default vertical Full HD for YouTube Shorts
-        const int defaultW = 607;
-        const int defaultH = 1080;
-
-        // Empty or whitespace → default crop
-        if (string.IsNullOrWhiteSpace(v))
-            return (defaultW, defaultH);
-
-        var s = v.Trim().ToLowerInvariant();
-
-        // Expected format: "WWWxHHH"
-        var parts = s.Split('x');
-        if (parts.Length != 2)
-            return null;
-
-        var okW = int.TryParse(parts[0], out var w);
-        var okH = int.TryParse(parts[1], out var h);
-
-        if (!okW || !okH || w <= 0 || h <= 0)
-            return null;
-
-        return (w, h);
-    }
 
     // -----------------------------
     // Logging + Progress UI
@@ -200,9 +109,9 @@ class Program
 
     static void Log(string prefix, ConsoleColor color, string msg)
     {
-        lock (consoleLock)
+        lock (_consoleLock)
         {
-            if (plainText)
+            if (_plainText)
             {
                 Console.WriteLine($"{prefix} {msg}");
             }
@@ -211,7 +120,7 @@ class Program
                 Console.ForegroundColor = color;
                 Console.WriteLine($"{prefix} {msg}");
                 Console.ResetColor();
-                logLines++;
+                _logLines++;
             }
         }
     }
@@ -223,18 +132,18 @@ class Program
 
     static void DrawProgress(double progress, TimeSpan eta, double speed)
     {
-        if ( plainText )
+        if ( _plainText )
             return;
 
-        lock (consoleLock)
+        lock (_consoleLock)
         {
             var width = Math.Max(20, Console.WindowWidth - 20);
             var filled = (int)(progress * width);
             if (filled < 0) filled = 0;
             if (filled > width) filled = width;
 
-            var barLine = logLines + 1;
-            var infoLine = logLines + 2;
+            var barLine = _logLines + 1;
+            var infoLine = _logLines + 2;
 
             // Progress bar with 24-bit color (green)
             Console.SetCursorPosition(0, barLine);
@@ -313,7 +222,7 @@ class Program
         // Progress thread
         var progressThread = new Thread(() =>
         {
-            while (progressRunning)
+            while (_progressRunning)
             {
                 var progress = segments == 0 ? 0 : (double)completed / segments;
                 var processedSeconds = completed * segmentLength;
@@ -347,7 +256,7 @@ class Program
             });
 
         sw.Stop();
-        progressRunning = false;
+        _progressRunning = false;
         progressThread.Join();
         DrawProgress(1.0, TimeSpan.Zero, totalDuration / Math.Max(sw.Elapsed.TotalSeconds, 0.0001));
     }
@@ -378,7 +287,7 @@ class Program
         // Progress thread
         var progressThread = new Thread(() =>
         {
-            while (progressRunning)
+            while (_progressRunning)
             {
                 var progress = segments == 0 ? 0 : (double)completed / segments;
                 var processedSeconds = completed * segmentLength;
@@ -408,7 +317,7 @@ class Program
         }
 
         sw.Stop();
-        progressRunning = false;
+        _progressRunning = false;
         progressThread.Join();
         DrawProgress(1.0, TimeSpan.Zero, totalDuration / Math.Max(sw.Elapsed.TotalSeconds, 0.0001));
     }
@@ -426,12 +335,10 @@ class Program
         string[] passthrough,
         int width,
         int height,
-        bool showDebugOverlay)
+        bool showDebugOverlay,
+        string? detect)
     {
-        var tracker = new FaceTracker
-        {
-            DrawProgress = DrawProgress
-        };
+        var tracker = new TrackingSplitter(Log, DrawProgress);
 
         var jobs = Enumerable.Range(0, segments)
         .Select(i => new
@@ -446,12 +353,12 @@ class Program
 
         var completed = 0;
         var sw = Stopwatch.StartNew();
-        progressRunning = true;
+        _progressRunning = true;
 
         // --- PROGRESS THREAD ---
         var progressThread = new Thread(() =>
         {
-            while (progressRunning)
+            while (_progressRunning)
             {
                 var progress = segments == 0 ? 0 : (double)completed / segments;
                 var processedSeconds = completed * segmentLength;
@@ -483,11 +390,18 @@ class Program
             async job =>
             {
                 var outputFile = BuildOutputFileName(outputFolder, outputMask, job.Index);
+                using IDisposable detector = detect switch
+                {
+                    "face" => new UltraFaceDetector(Log, DrawProgress),
+                    "body" => new YoloOnnxObjectDetector(Log, DrawProgress),
+                    _      => throw new InvalidOperationException($"Unknown detector: {detect}")
+                };
 
                 // Run the face-tracking cropper
-                await tracker.TrackFaceAndExtract(
+                await tracker.TrackAndExtract(
                     inputFile,
                     outputFile,
+                    (IObjectDetector)detector,
                     TimeSpan.FromSeconds(job.Start),
                     TimeSpan.FromSeconds(job.Length),
                     width,
@@ -500,7 +414,7 @@ class Program
 
         // --- CLEANUP ---
         sw.Stop();
-        progressRunning = false;
+        _progressRunning = false;
         progressThread.Join();
 
         var finalSpeed = duration / Math.Max(sw.Elapsed.TotalSeconds, 0.0001);
@@ -550,98 +464,5 @@ class Program
         using var proc = Process.Start(psi) ?? throw new Exception("Failed to start ffmpeg.");
         proc.StandardError.ReadToEnd(); // swallow output
         proc.WaitForExit();
-    }
-
-    static double ParseDuration(string text)
-    {
-        text = text.Trim().ToLowerInvariant();
-
-        // Case 1: pure number to seconds
-        if (double.TryParse(text, NumberStyles.Any, CultureInfo.InvariantCulture, out var sec))
-            return sec;
-
-        // Case 2: Ns (seconds)
-        if (text.EndsWith("s") && double.TryParse(text[..^1], out sec))
-            return sec;
-
-        // Case 3: NmMs (minutes + seconds)
-        // Examples: 2m30s, 1m5s, 10m0s
-        var mIndex = text.IndexOf('m');
-        var sIndex = text.IndexOf('s');
-
-        if (mIndex > 0 && sIndex > mIndex)
-        {
-            var mPart = text[..mIndex];
-            var sPart = text[(mIndex + 1)..sIndex];
-
-            if (double.TryParse(mPart, out var minutes) &&
-                double.TryParse(sPart, out var seconds))
-            {
-                return minutes * 60 + seconds;
-            }
-        }
-
-        throw new FormatException($"Invalid duration format: {text}");
-    }
-
-    // -----------------------------
-    // Help
-    // -----------------------------
-
-    static void PrintHelp()
-    {
-        Console.WriteLine(@"
-Usage:
-  splitter <input.mp4> <output_folder> [options] [--] <ffmpeg passthrough>
-
-Options:
-  --mask=<pattern>       Output filename pattern.
-                         Default: <OriginalName>_Seg%03d.mp4
-                         Supports %03d or %d for segment index.
-
-  --duration=<value>     Override target segment duration.
-                         Accepted formats:
-                           Ns      - N seconds
-                           NmMs    - N minutes M seconds
-                           N       - N seconds (plain number)
-
-                         Examples:
-                           --duration=90s
-                           --duration=2m30s
-                           --duration=45
-
-                         Without --force:
-                           Segments are equalized so all have same length.
-
-  --force                Use fixed segment duration exactly as given.
-                         Last segment may be shorter.
-                         Default: OFF
-
-  --estimate             Print calculated segment information and exit.
-                         No splitting is performed.
-
-  --crop[=<w:h>]         Crop video to width w and height h, with face tracking.
-                         Useful to making YouTube Shorts or TikToks from horizontal video.
-                         Default: 607x1080 (vertical video cropped from Full HD original)
-
-  --text                 Display log in plain text.
-
-  --debug                Show debug overlay during face tracking.
-
-Passthrough:
-  Anything after -- is passed directly to ffmpeg.
-
-Examples:
-  splitter vertical-video.mp4 out/
-  splitter vertical-video.mp4 out/ --duration=90s
-  splitter vertical-video.mp4 out/ --duration=2m30s --mask=""Part%03d.mp4""
-  splitter vertical-video.mp4 out/ --estimate
-  splitter vertical-video.mp4 out/ --force --duration=45 -- -an -sn
-  splitter horizontal-video.mp4 out/ --crop
-
-Description:
-  Splits a video into equal or fixed-length segments using multi-threaded
-  ffmpeg execution. Supports ETA, speed, and rich progress display.
-");
     }
 }

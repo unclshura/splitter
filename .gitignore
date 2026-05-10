@@ -363,6 +363,4 @@ MigrationBackup/
 FodyWeavers.xsd
 
 # OpenCV models
-*.onnx
-*.bin
-*.param
+models/*.*

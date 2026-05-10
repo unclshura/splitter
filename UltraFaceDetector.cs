@@ -1,87 +1,40 @@
-﻿using NcnnDotNet;
+﻿using System.Runtime.InteropServices;
+using NcnnDotNet.Layers;
+using OpenCvSharp;
 using UltraFaceDotNet;
 
 namespace splitter;
 
-public sealed class UltraFaceDetector : IDisposable
+public sealed class UltraFaceDetector: LoggingBase, IDisposable, IObjectDetector
 {
     private readonly UltraFace _ultraFace;
 
-    public UltraFaceDetector(string binPath, string paramPath)
+    public UltraFaceDetector(
+        Action<string/*level*/, ConsoleColor /*color*/, string /*message*/> log,
+        Action<double /*percent*/, TimeSpan /*duration*/, double /*fps*/> drawProgress
+        ) : base(log, drawProgress)
     {
+        var basePath = AppDomain.CurrentDomain.BaseDirectory;
         var param = new UltraFaceParameter
         {
-            BinFilePath = binPath,
-            ParamFilePath = paramPath,
-            InputWidth = 320,
-            InputLength = 240,
-            NumThread = 1,
+            BinFilePath    = Path.Combine(basePath, "models", "slim_320.bin"),
+            ParamFilePath  = Path.Combine(basePath, "models", "slim_320.param"),
+            InputWidth     = 320,
+            InputLength    = 240,
+            NumThread      = 1,
             ScoreThreshold = 0.7f
         };
 
         _ultraFace = UltraFace.Create(param);
     }
 
-    public (Rect box, Point2f center)? Detect(byte[] bgr, int width, int height)
+    public List<(Rect box, Point2f center)> DetectAll(Mat frameCont, int width, int height)
     {
-        if (bgr == null || bgr.Length == 0)
-            return null;
+        // Convert to byte[] for UltraFace
+        var bytesFull = frameCont.Rows * frameCont.Cols * frameCont.ElemSize();
+        var bgr = new byte[bytesFull];
+        Marshal.Copy(frameCont.Data, bgr, 0, bytesFull);
 
-        // bgr is contiguous BGR24: width * height * 3
-        unsafe
-        {
-            fixed (byte* p = bgr)
-            {
-                using var mat = Mat.FromPixels(
-                    (IntPtr)p,
-                    PixelType.Bgr,     // BGR24 input
-                    width,
-                    height);
-
-                var faces = _ultraFace.Detect(mat);
-                if (faces == null)
-                    return null;
-
-                FaceInfo best = default;
-                bool hasBest = false;
-
-                foreach (var f in faces)
-                {
-                    if (!hasBest || f.Score > best.Score)
-                    {
-                        best = f;
-                        hasBest = true;
-                    }
-                }
-
-                if (!hasBest)
-                    return null;
-
-                int x1 = (int)best.X1;
-                int y1 = (int)best.Y1;
-                int x2 = (int)best.X2;
-                int y2 = (int)best.Y2;
-
-                var rect = new Rect(
-                    x1,
-                    y1,
-                    x2 - x1,
-                    y2 - y1);
-
-                if (rect.Width <= 0 || rect.Height <= 0)
-                    return null;
-
-                var center = new Point2f(
-                    rect.X + rect.Width / 2f,
-                    rect.Y + rect.Height / 2f);
-
-                return (rect, center);
-            }
-        }
-    }
-
-    public List<(Rect box, Point2f center)> DetectAll(byte[] bgr, int width, int height)
-    {
         var results = new List<(Rect box, Point2f center)>();
 
         if (bgr == null || bgr.Length == 0)
@@ -91,9 +44,9 @@ public sealed class UltraFaceDetector : IDisposable
         {
             fixed (byte* p = bgr)
             {
-                using var mat = Mat.FromPixels(
+                using var mat = NcnnDotNet.Mat.FromPixels(
                 (IntPtr)p,
-                PixelType.Bgr,     // BGR24 input
+                NcnnDotNet.PixelType.Bgr,     // BGR24 input
                 width,
                 height);
 
