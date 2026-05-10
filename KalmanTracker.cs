@@ -14,6 +14,8 @@ internal sealed class KalmanTracker
     // Measurement noise (dynamic)
     private float _r = 1e-1f;
 
+    public float CurrentNoise => _r;
+
     // Identity matrix
     private static readonly float[,] _i =
     {

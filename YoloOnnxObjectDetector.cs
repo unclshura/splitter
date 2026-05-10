@@ -81,7 +81,7 @@ public sealed class YoloOnnxObjectDetector : LoggingBase, IObjectDetector, IDisp
             h = Math.Clamp(h, 1, frameCont.Height - y);
 
             // Ignore detections starting in the lower 1/3 of the frame
-            if (y > frameCont.Height * (2f / 3f))
+            if (y > frameCont.Height * (0.5f))
                 continue;
 
             var rect   = new Rect(x, y, w, h);
