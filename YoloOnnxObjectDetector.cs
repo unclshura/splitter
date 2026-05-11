@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
+using System.Runtime.CompilerServices;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using OpenCvSharp;
@@ -19,17 +21,54 @@ public sealed class YoloOnnxObjectDetector : LoggingBase, IObjectDetector, IDisp
     private const float _nmsThreshold     = 0.45f;
     private const int   _personClassIndex = 0;
 
+    // Reusable Mats (no per-frame Mat allocations)
+    private readonly Mat _resizeMat = new();
+    private readonly Mat _rgbMat    = new();
+
+    // Reusable input tensor buffer
+    private readonly float[] _inputBuffer;
+    private readonly DenseTensor<float> _inputTensor;
+
+    // Reusable ONNX input list
+    private readonly List<NamedOnnxValue> _inputs = new(1);
+
+    // Reusable detection buffers
+    private readonly List<Detection> _detections = new(256);
+    private readonly List<Detection> _nmsBuffer  = new(256);
+
+    // Reusable result list
+    private readonly List<(Rect box, Point2f center)> _results = new(64);
+
+    private readonly float _inv255 = 1f / 255f;
+
+    private readonly struct Detection
+    {
+        public readonly float X;
+        public readonly float Y;
+        public readonly float Width;
+        public readonly float Height;
+        public readonly float Score;
+
+        public Detection(float x, float y, float w, float h, float score)
+        {
+            X = x;
+            Y = y;
+            Width = w;
+            Height = h;
+            Score = score;
+        }
+    }
+
     public YoloOnnxObjectDetector(
         Action<string, ConsoleColor, string> log,
         Action<double, TimeSpan, double> drawProgress
     ) : base(log, drawProgress)
     {
         var options = new SessionOptions();
-//        options.AppendExecutionProvider_CPU();
         options.AppendExecutionProvider_DML();
 
         var basePath  = AppDomain.CurrentDomain.BaseDirectory;
-        var modelPath = System.IO.Path.Combine(basePath, "models", "yolov8n.onnx");
+        var modelPath = Path.Combine(basePath, "models", "yolov8s.onnx");
 
         _session = new InferenceSession(modelPath, options);
 
@@ -38,38 +77,66 @@ public sealed class YoloOnnxObjectDetector : LoggingBase, IObjectDetector, IDisp
 
         foreach (var kv in _session.OutputMetadata)
             LogInfo($"[YoloOnnx] {kv.Key}: {string.Join(",", kv.Value.Dimensions)} {kv.Value.ElementType}");
+
+        // Preallocate tensor buffer (fixed size for lifetime)
+        _inputBuffer = new float[1 * 3 * _inputHeight * _inputWidth];
+        _inputTensor = new DenseTensor<float>(_inputBuffer, new[] { 1, 3, _inputHeight, _inputWidth });
+
+        // Pre-create NamedOnnxValue and reuse
+        _inputs.Add(NamedOnnxValue.CreateFromTensor(_inputName, _inputTensor));
     }
 
     public List<(Rect box, Point2f center)> DetectAll(Mat frameCont, int width, int height)
     {
         if (frameCont.Empty())
-            return new List<(Rect, Point2f)>();
-
-        using var resized = frameCont.Resize(new Size(_inputWidth, _inputHeight));
-        using var rgb     = resized.CvtColor(ColorConversionCodes.BGR2RGB);
-
-        var inputTensor = CreateInputTensor(rgb);
-
-        using var results = _session.Run(new[]
         {
-            NamedOnnxValue.CreateFromTensor(_inputName, inputTensor)
-        });
+            _results.Clear();
+            return _results;
+        }
 
-        var output = results.First(r => r.Name == _outputName).AsTensor<float>();
+        // Reuse Mats: no new Mat per frame
+        Cv2.Resize(frameCont, _resizeMat, new Size(_inputWidth, _inputHeight));
+        Cv2.CvtColor(_resizeMat, _rgbMat, ColorConversionCodes.BGR2RGB);
 
-        var detections = ParseYoloV8(
+        // Fill preallocated tensor buffer
+        FillInputTensor(_rgbMat);
+
+        using var results = _session.Run(_inputs);
+
+        Tensor<float>? output = null;
+        foreach (var r in results)
+        {
+            if (r.Name == _outputName)
+            {
+                output = r.AsTensor<float>();
+                break;
+            }
+        }
+
+        if (output is null)
+        {
+            _results.Clear();
+            return _results;
+        }
+
+        // Parse detections into reusable list
+        ParseYoloV8(
             output,
             frameCont.Width,
             frameCont.Height,
             _scoreThreshold,
-            _personClassIndex);
+            _personClassIndex,
+            _detections);
 
-        var final = ApplyNms(detections, _nmsThreshold);
+        // Apply NMS into reusable buffer
+        var final = ApplyNms(_detections, _nmsThreshold, _nmsBuffer);
 
-        var list = new List<(Rect, Point2f)>(final.Count);
-
-        foreach (var d in final)
+        // Build reusable result list
+        _results.Clear();
+        for (int i = 0; i < final.Count; i++)
         {
+            var d = final[i];
+
             int x = (int)d.X;
             int y = (int)d.Y;
             int w = (int)d.Width;
@@ -80,73 +147,75 @@ public sealed class YoloOnnxObjectDetector : LoggingBase, IObjectDetector, IDisp
             w = Math.Clamp(w, 1, frameCont.Width - x);
             h = Math.Clamp(h, 1, frameCont.Height - y);
 
-            // Ignore detections starting in the lower 1/3 of the frame
-            if (y > frameCont.Height * (0.5f))
+            // Ignore detections starting in the lower 1/2 of the frame
+            if (y > frameCont.Height * 0.5f)
                 continue;
 
             var rect   = new Rect(x, y, w, h);
             var center = new Point2f(x + w / 2f, y + h / 2f);
 
-            list.Add((rect, center));
+            _results.Add((rect, center));
         }
 
-        return list;
+        return _results;
     }
 
-    private static DenseTensor<float> CreateInputTensor(Mat rgb)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void FillInputTensor(Mat rgb)
     {
-        int height = rgb.Rows;
-        int width  = rgb.Cols;
+        // rgb is 640x640, 3 channels, 8-bit
+        int height = _inputHeight;
+        int width  = _inputWidth;
 
-        var tensor = new DenseTensor<float>(new[] { 1, 3, height, width });
+        Span<float> dst = _inputBuffer.AsSpan();
+        int dstIndex = 0;
 
         unsafe
         {
             for (int y = 0; y < height; y++)
             {
-                byte* row = (byte*)rgb.Ptr(y).ToPointer();
+                byte* rowPtr = (byte*)rgb.Ptr(y).ToPointer();
+                var rowSpan = new Span<byte>(rowPtr, width * 3);
 
+                int srcIndex = 0;
+
+                // Layout: CHW (1,3,H,W)
+                // We fill in RGB order, normalized to [0,1]
+                // Loop structured to be SIMD-friendly; JIT can vectorize the simple arithmetic.
                 for (int x = 0; x < width; x++)
                 {
-                    int idx = x * 3;
+                    byte r = rowSpan[srcIndex + 0];
+                    byte g = rowSpan[srcIndex + 1];
+                    byte b = rowSpan[srcIndex + 2];
 
-                    tensor[0, 0, y, x] = row[idx + 0] / 255f;
-                    tensor[0, 1, y, x] = row[idx + 1] / 255f;
-                    tensor[0, 2, y, x] = row[idx + 2] / 255f;
+                    dst[dstIndex + 0] = r * _inv255;
+                    dst[dstIndex + 1] = g * _inv255;
+                    dst[dstIndex + 2] = b * _inv255;
+
+                    srcIndex += 3;
+                    dstIndex += 3;
                 }
             }
         }
-
-        return tensor;
     }
 
-    private sealed class Detection
-    {
-        public float X;
-        public float Y;
-        public float Width;
-        public float Height;
-        public float Score;
-    }
-
-    // -----------------------------
-    // CORRECT YOLOv8 PARSER
-    // -----------------------------
-    private static List<Detection> ParseYoloV8(
+    // YOLOv8 parser: writes into reusable detections list
+    private static void ParseYoloV8(
         Tensor<float> output,
         int originalWidth,
         int originalHeight,
         float scoreThreshold,
-        int classIndex)
+        int classIndex,
+        List<Detection> detections)
     {
+        detections.Clear();
+
         // YOLOv8 output: [1, 84, 8400]
         int channels = output.Dimensions[1]; // 84
         int count    = output.Dimensions[2]; // 8400
 
         float xScale = (float)originalWidth  / 640f;
         float yScale = (float)originalHeight / 640f;
-
-        var detections = new List<Detection>();
 
         for (int i = 0; i < count; i++)
         {
@@ -165,58 +234,72 @@ public sealed class YoloOnnxObjectDetector : LoggingBase, IObjectDetector, IDisp
             float height = h * yScale;
 
             detections.Add(new Detection
-            {
-                X = left,
-                Y = top,
-                Width = width,
-                Height = height,
-                Score = classScore
-            });
+            (
+                x: left,
+                y: top,
+                w: width,
+                h: height,
+                score: classScore
+            ));
         }
-
-        return detections;
     }
 
-    private static List<Detection> ApplyNms(List<Detection> detections, float nmsThreshold)
+    // In-place NMS using reusable buffers, no LINQ
+    private static List<Detection> ApplyNms(
+        List<Detection> detections,
+        float nmsThreshold,
+        List<Detection> nmsBuffer)
     {
+        nmsBuffer.Clear();
+
         if (detections.Count == 0)
-            return detections;
+            return nmsBuffer;
 
-        var ordered = detections.OrderByDescending(d => d.Score).ToList();
-        var result  = new List<Detection>();
+        // Sort in-place by score descending
+        detections.Sort(static (a, b) => b.Score.CompareTo(a.Score));
 
-        while (ordered.Count > 0)
+        for (int i = 0; i < detections.Count; i++)
         {
-            var best = ordered[0];
-            result.Add(best);
-            ordered.RemoveAt(0);
+            var candidate = detections[i];
+            bool keep = true;
 
-            for (int i = ordered.Count - 1; i >= 0; i--)
+            for (int j = 0; j < nmsBuffer.Count; j++)
             {
-                if (IoU(best, ordered[i]) >= nmsThreshold)
-                    ordered.RemoveAt(i);
+                if (IoU(candidate, nmsBuffer[j]) >= nmsThreshold)
+                {
+                    keep = false;
+                    break;
+                }
             }
+
+            if (keep)
+                nmsBuffer.Add(candidate);
         }
 
-        return result;
+        return nmsBuffer;
     }
 
-    private static float IoU(Detection a, Detection b)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static float IoU(in Detection a, in Detection b)
     {
         float x1 = MathF.Max(a.X, b.X);
         float y1 = MathF.Max(a.Y, b.Y);
         float x2 = MathF.Min(a.X + a.Width,  b.X + b.Width);
         float y2 = MathF.Min(a.Y + a.Height, b.Y + b.Height);
 
-        float interW = MathF.Max(0, x2 - x1);
-        float interH = MathF.Max(0, y2 - y1);
+        float interW = x2 - x1;
+        if (interW <= 0f) return 0f;
+
+        float interH = y2 - y1;
+        if (interH <= 0f) return 0f;
+
         float interArea = interW * interH;
 
         float areaA = a.Width * a.Height;
         float areaB = b.Width * b.Height;
 
         float union = areaA + areaB - interArea;
-        if (union <= 0) return 0f;
+        if (union <= 0f) return 0f;
 
         return interArea / union;
     }
@@ -224,5 +307,7 @@ public sealed class YoloOnnxObjectDetector : LoggingBase, IObjectDetector, IDisp
     public void Dispose()
     {
         _session?.Dispose();
+        _resizeMat?.Dispose();
+        _rgbMat?.Dispose();
     }
 }
