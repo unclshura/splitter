@@ -1,5 +1,8 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using OpenCvSharp;
 
 namespace splitter;
@@ -10,9 +13,9 @@ public class TrackingSplitter(
     ) : LoggingBase(log, drawProgress)
 {
     private const int   LostFreezeFrames = 60; // 2 seconds at 30 FPS
-    private const float CameraEasing = 0.03f;
+    private const float CameraEasing     = 0.03f;
 
-    enum TrackState
+    private enum TrackState
     {
         Tracking,
         LostFreeze,
@@ -61,12 +64,19 @@ public class TrackingSplitter(
 
         using var stdin = ffmpeg.StandardInput.BaseStream;
 
-        var frame  = new Mat();
+        // Reusable frame and output mat
+        using var frame     = new Mat();
+        using var outputBgr = new Mat(encHeight, encWidth, MatType.CV_8UC3);
+
+        // Reusable raw video buffer
+        var frameBytes = encWidth * encHeight * 3;
+        var videoBuffer = new byte[frameBytes];
+
         var kalman = new KalmanTracker();
         kalman.Reset(new Point2f(videoWidth / 2f, videoHeight / 2f));
 
-        var lostFrames           = 0;
-        var reacquireCounter     = 0;
+        var lostFrames       = 0;
+        var reacquireCounter = 0; // kept for overlay display
 
         var cameraCenter = new Point2f(videoWidth / 2f, videoHeight / 2f);
         var startTime    = DateTime.UtcNow;
@@ -77,12 +87,10 @@ public class TrackingSplitter(
             if (!capture.Read(frame) || frame.Empty())
                 break;
 
-            Mat frameCont = frame.IsContinuous() ? frame : frame.Clone();
-
             Rect?    objectBox    = null;
             Point2f? objectCenter = null;
 
-            var objects = detector.DetectAll(frameCont, videoWidth, videoHeight);
+            var objects = detector.DetectAll(frame, videoWidth, videoHeight);
             var primary = SelectTrackedObject(objects, kalman.LastMeasurement);
 
             if (primary.HasValue)
@@ -93,22 +101,20 @@ public class TrackingSplitter(
 
             bool isLost = !objectCenter.HasValue;
 
-            // ------------------------------
             // LOST / REACQUIRE STATE MACHINE
-            // ------------------------------
             if (isLost)
             {
                 lostFrames++;
 
                 if (lostFrames <= LostFreezeFrames)
                 {
-                    // 1) LOST_FREEZE: freeze camera
+                    // LOST_FREEZE: freeze camera
                     state = TrackState.LostFreeze;
                     objectCenter = null; // Kalman predicts but camera won't move
                 }
                 else
                 {
-                    // 2) LOST_DRIFT: drift camera to center
+                    // LOST_DRIFT: drift camera to center
                     state = TrackState.LostDrift;
                     objectCenter = new Point2f(videoWidth / 2f, videoHeight / 2f);
                 }
@@ -120,16 +126,13 @@ public class TrackingSplitter(
                 lostFrames = 0;
             }
 
-            // ------------------------------
-            // KALMAN UPDATE
-            // ------------------------------
+            // KALMAN + CAMERA UPDATE
             Point2f smoothedCenter;
 
             if (state == TrackState.Tracking)
             {
                 smoothedCenter = kalman.Update(objectCenter);
 
-                // Normal camera easing
                 float easing = 0.015f; // faster tracking
                 cameraCenter = new Point2f(
                     cameraCenter.X + (smoothedCenter.X - cameraCenter.X) * easing,
@@ -138,13 +141,12 @@ public class TrackingSplitter(
             else if (state == TrackState.LostFreeze)
             {
                 // Freeze camera — do nothing
-                smoothedCenter = kalman.LastMeasurement ?? new Point2f(0,0);
+                smoothedCenter = kalman.LastMeasurement ?? new Point2f(0, 0);
             }
             else // LOST_DRIFT
             {
                 smoothedCenter = kalman.Update(objectCenter);
 
-                // Drift camera slowly to center
                 float driftEasing = 0.01f;
                 var fallbackCenter = new Point2f(videoWidth / 2f, videoHeight / 2f);
 
@@ -152,6 +154,7 @@ public class TrackingSplitter(
                     cameraCenter.X + (fallbackCenter.X - cameraCenter.X) * driftEasing,
                     cameraCenter.Y + (fallbackCenter.Y - cameraCenter.Y) * driftEasing);
             }
+
             var halfW = originalCropWidth  / 2f;
             var halfH = originalCropHeight / 2f;
 
@@ -160,7 +163,6 @@ public class TrackingSplitter(
 
             if (state == TrackState.Tracking)
             {
-                // Normal tracking
                 smoothedCenter = kalman.Update(objectCenter);
 
                 cameraCenter = new Point2f(
@@ -173,7 +175,6 @@ public class TrackingSplitter(
             }
             else if (state == TrackState.LostDrift)
             {
-                // Drift camera slowly to center
                 var fallbackCenter = new Point2f(videoWidth / 2f, videoHeight / 2f);
 
                 cameraCenter = new Point2f(
@@ -194,56 +195,47 @@ public class TrackingSplitter(
 
             if (debugOverlay)
             {
-                // overlays always drawn on frameCont
+                // overlays always drawn on frame
                 if (objectBox.HasValue)
                 {
                     var fb = objectBox.Value;
-                    Cv2.Rectangle(frameCont,
+                    Cv2.Rectangle(frame,
                         new Rect(fb.X, fb.Y, fb.Width, fb.Height),
                         Scalar.LimeGreen, 2);
                 }
 
-                Cv2.Circle(frameCont,
+                Cv2.Circle(frame,
                     new Point((int)smoothedCenter.X, (int)smoothedCenter.Y),
                     6, Scalar.LimeGreen, -1);
 
-                Cv2.Rectangle(frameCont, roi,
+                Cv2.Rectangle(frame, roi,
                     objectCenter.HasValue ? Scalar.Yellow : Scalar.Red, 3);
 
-                DrawText(frameCont, $"Faces: {objects.Count}", 20, 40, Scalar.White);
-                DrawText(frameCont, $"LostFrames: {lostFrames}", 20, 70, Scalar.White);
-                DrawText(frameCont, $"Reacquire: {reacquireCounter}", 20, 100, Scalar.White);
-                DrawText(frameCont, $"Noise: {kalman.CurrentNoise:F3}", 20, 130, Scalar.White);
-                DrawText(frameCont, $"Camera: {cameraCenter.X:F1},{cameraCenter.Y:F1}", 20, 160, Scalar.White);
+                DrawText(frame, $"Faces: {objects.Count}", 20, 40, Scalar.White);
+                DrawText(frame, $"LostFrames: {lostFrames}", 20, 70, Scalar.White);
+                DrawText(frame, $"Reacquire: {reacquireCounter}", 20, 100, Scalar.White);
+                DrawText(frame, $"Noise: {kalman.CurrentNoise:F3}", 20, 130, Scalar.White);
+                DrawText(frame, $"Camera: {cameraCenter.X:F1},{cameraCenter.Y:F1}", 20, 160, Scalar.White);
             }
 
             if (debugOverlay)
             {
                 // DEBUG MODE: write FULL FRAME with overlays
-                var bgr = frameCont.IsContinuous() ? frameCont : frameCont.Clone();
+                // Ensure contiguous buffer by copying into preallocated outputBgr
+                frame.CopyTo(outputBgr);
 
-                var bytes  = bgr.Rows * bgr.Cols * bgr.ElemSize();
-                var buffer = new byte[bytes];
-                Marshal.Copy(bgr.Data, buffer, 0, bytes);
-                stdin.Write(buffer, 0, bytes);
-
-                if (!ReferenceEquals(bgr, frameCont))
-                    bgr.Dispose();
+                Marshal.Copy(outputBgr.Data, videoBuffer, 0, frameBytes);
+                stdin.Write(videoBuffer, 0, frameBytes);
             }
             else
             {
                 // PRODUCTION MODE: actual crop
-                using var cropped = new Mat(frameCont, roi);
-                using var bgr     = cropped.Clone();
+                using var cropped = new Mat(frame, roi);
+                cropped.CopyTo(outputBgr);
 
-                var bytes  = bgr.Rows * bgr.Cols * bgr.ElemSize();
-                var buffer = new byte[bytes];
-                Marshal.Copy(bgr.Data, buffer, 0, bytes);
-                stdin.Write(buffer, 0, bytes);
+                Marshal.Copy(outputBgr.Data, videoBuffer, 0, frameBytes);
+                stdin.Write(videoBuffer, 0, frameBytes);
             }
-
-            if (!ReferenceEquals(frameCont, frame))
-                frameCont.Dispose();
 
             var elapsed         = DateTime.UtcNow - startTime;
             var progress        = (double)i / totalFrames;
@@ -272,19 +264,46 @@ public class TrackingSplitter(
 
         if (!previousCenter.HasValue)
         {
-            return foundObjects
-                .OrderByDescending(f => f.box.Width * f.box.Height)
-                .First();
-        }
+            // Largest area
+            var bestIndex = 0;
+            var bestArea  = float.MinValue;
 
-        return foundObjects
-            .OrderBy(f =>
+            for (int i = 0; i < foundObjects.Count; i++)
             {
-                var dx = f.center.X - previousCenter.Value.X;
-                var dy = f.center.Y - previousCenter.Value.Y;
-                return dx * dx + dy * dy;
-            })
-            .First();
+                var f    = foundObjects[i];
+                var area = f.box.Width * f.box.Height;
+                if (area > bestArea)
+                {
+                    bestArea = area;
+                    bestIndex = i;
+                }
+            }
+
+            return foundObjects[bestIndex];
+        }
+        else
+        {
+            // Closest to previous center
+            var prev = previousCenter.Value;
+            var bestIndex = 0;
+            var bestDist2 = float.MaxValue;
+
+            for (int i = 0; i < foundObjects.Count; i++)
+            {
+                var f  = foundObjects[i];
+                var dx = f.center.X - prev.X;
+                var dy = f.center.Y - prev.Y;
+                var d2 = dx * dx + dy * dy;
+
+                if (d2 < bestDist2)
+                {
+                    bestDist2 = d2;
+                    bestIndex = i;
+                }
+            }
+
+            return foundObjects[bestIndex];
+        }
     }
 
     private Process StartFfmpegNvenc(
@@ -297,8 +316,8 @@ public class TrackingSplitter(
         string[] passthrough)
     {
         var pass        = passthrough.Length > 0 ? string.Join(" ", passthrough) : "";
-        var skipSeconds = skip.TotalSeconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
-        var fpsStr      = fps.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+        var skipSeconds = skip.TotalSeconds.ToString("0.###", CultureInfo.InvariantCulture);
+        var fpsStr      = fps.ToString("0.###", CultureInfo.InvariantCulture);
 
         var args =
             "-y " +
@@ -337,10 +356,9 @@ public class TrackingSplitter(
         return process;
     }
 
-    void DrawText(Mat img, string text, int x, int y, Scalar color)
+    private static void DrawText(Mat img, string text, int x, int y, Scalar color)
     {
         Cv2.PutText(img, text, new Point(x, y),
             HersheyFonts.HersheySimplex, 0.6, color, 2);
     }
-
 }

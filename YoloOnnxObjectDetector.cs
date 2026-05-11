@@ -163,12 +163,13 @@ public sealed class YoloOnnxObjectDetector : LoggingBase, IObjectDetector, IDisp
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void FillInputTensor(Mat rgb)
     {
-        // rgb is 640x640, 3 channels, 8-bit
         int height = _inputHeight;
         int width  = _inputWidth;
 
+        // NCHW: [1, 3, H, W]
+        int planeSize = height * width;
+
         Span<float> dst = _inputBuffer.AsSpan();
-        int dstIndex = 0;
 
         unsafe
         {
@@ -179,21 +180,22 @@ public sealed class YoloOnnxObjectDetector : LoggingBase, IObjectDetector, IDisp
 
                 int srcIndex = 0;
 
-                // Layout: CHW (1,3,H,W)
-                // We fill in RGB order, normalized to [0,1]
-                // Loop structured to be SIMD-friendly; JIT can vectorize the simple arithmetic.
                 for (int x = 0; x < width; x++)
                 {
                     byte r = rowSpan[srcIndex + 0];
                     byte g = rowSpan[srcIndex + 1];
                     byte b = rowSpan[srcIndex + 2];
 
-                    dst[dstIndex + 0] = r * _inv255;
-                    dst[dstIndex + 1] = g * _inv255;
-                    dst[dstIndex + 2] = b * _inv255;
+                    int offset = y * width + x;
+
+                    // channel 0: R
+                    dst[offset] = r * _inv255;
+                    // channel 1: G
+                    dst[planeSize + offset] = g * _inv255;
+                    // channel 2: B
+                    dst[2 * planeSize + offset] = b * _inv255;
 
                     srcIndex += 3;
-                    dstIndex += 3;
                 }
             }
         }
