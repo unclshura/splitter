@@ -18,6 +18,7 @@ public sealed class CommandLine
     public bool PlainText                 { get; private init; }
     public bool EstimateOnly              { get; private init; }
     public bool ForceFixed                { get; private init; }
+    public bool SingleThreaded            { get; private init; }
 
     public bool IsValid => !string.IsNullOrEmpty(InputFile) && !string.IsNullOrEmpty(OutputFolder);
 
@@ -78,6 +79,10 @@ public sealed class CommandLine
             else if (arg == "--debug")
             {
                 Debug = true;
+            }
+            else if (arg == "--single-thread")
+            {
+                SingleThreaded = true;
             }
             else if (arg.StartsWith("--duration="))
             {
@@ -197,6 +202,9 @@ Options:
                          Values: face (UltraFace), body (YoloOnnx, default), none (no tracking, just a center)
 
   --text                 Display log in plain text.
+
+  --single-thread        Run in single-threaded mode (no parallel ffmpeg processes).
+                         Useful for debugging or if system is resource-constrained.
 
   --debug                Show debug overlay during face tracking.
 

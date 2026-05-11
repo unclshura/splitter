@@ -10,7 +10,7 @@
     },
     "Debug": {
       "commandName": "Project",
-      "commandLineArgs": "\"C:\\Users\\uncls\\Pictures\\2026\\2026 - Secret Rule\\20260426_212004.mp4\" \"C:\\Users\\uncls\\Pictures\\2026\\2026 - Secret Rule\\Shorts\" --crop --detect=body --debug --text"
+      "commandLineArgs": "\"C:\\Users\\uncls\\Pictures\\2026\\2026 - Secret Rule\\20260426_212004.mp4\" \"C:\\Users\\uncls\\Pictures\\2026\\2026 - Secret Rule\\Shorts\" --crop --detect=body --debug --single-thread --text"
     }
   }
 }

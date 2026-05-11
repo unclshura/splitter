@@ -7,49 +7,65 @@ using OpenCvSharp;
 
 namespace splitter;
 
-public class TrackingSplitter(
-    Action<string/*level*/, ConsoleColor /*color*/, string /*message*/> log,
-    Action<double /*percent*/, TimeSpan /*duration*/, double /*fps*/> drawProgress
-    ) : LoggingBase(log, drawProgress)
+public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
 {
-    public async Task TrackAndExtract(
-        string srcFileName,
-        string destFileName,
-        IObjectDetector detector,
-        TimeSpan skip,
-        TimeSpan duration,
-        int cropWidth,
-        int cropHeight,
-        string[] passthrough,
-        bool debugOverlay)
+    private readonly int  _segmentNo;
+    private readonly int  _cropWidth;
+    private readonly int  _cropHeight;
+    private readonly bool _debugOverlay;
+    private readonly bool _plainText;
+
+    private readonly IObjectDetector _detector;
+
+    public TrackingSplitter(int segmentNo, int cropWidth, int cropHeight, bool debugOverlay, bool plainText, IObjectDetector detector) 
+        : base(segmentNo)
     {
-        using var capture = new VideoCapture(srcFileName);
+        _segmentNo    = segmentNo;
+        _cropWidth    = cropWidth;
+        _cropHeight   = cropHeight;
+        _debugOverlay = debugOverlay;
+        _plainText    = plainText;
+        _detector     = detector;
+    }
+
+    public void Dispose()
+    {
+        if (_detector is IDisposable d)
+            d.Dispose();
+    }
+
+    public async Task ProcessSegment(string inputFile, string outputFile, double start, double length, string[] ffmpegPassthroughParameters)
+    { 
+        using var capture = new VideoCapture(inputFile);
         if (!capture.IsOpened())
             throw new Exception("Cannot open video");
 
-        capture.Set(VideoCaptureProperties.PosMsec, skip.TotalMilliseconds);
+        var skip = TimeSpan.FromSeconds(start);
+        var duration = TimeSpan.FromSeconds(length);
+
+        capture.Set(VideoCaptureProperties.PosMsec, start);
 
         var videoWidth  = (int)capture.Get(VideoCaptureProperties.FrameWidth);
         var videoHeight = (int)capture.Get(VideoCaptureProperties.FrameHeight);
         var fps         = capture.Get(VideoCaptureProperties.Fps);
-        var totalFrames = (int)(duration.TotalSeconds * fps);
+        var totalFrames = (int)(length * fps);
 
-        var originalCropWidth  = cropWidth;
-        var originalCropHeight = cropHeight;
+        var originalCropWidth  = _cropWidth;
+        var originalCropHeight = _cropHeight;
 
         Console.WriteLine($"[TrackingSplitter] skip={skip}, duration={duration}, fps={fps}, totalFrames={totalFrames}");
 
-        var encWidth  = debugOverlay ? videoWidth  : originalCropWidth;
-        var encHeight = debugOverlay ? videoHeight : originalCropHeight;
+        var encWidth  = _debugOverlay ? videoWidth  : originalCropWidth;
+        var encHeight = _debugOverlay ? videoHeight : originalCropHeight;
 
         var ffmpeg = StartFfmpegNvenc(
-        srcFileName,
-        destFileName,
-        encWidth,
-        encHeight,
-        fps,
-        skip,
-        passthrough);
+            inputFile,
+            outputFile,
+            encWidth,
+            encHeight,
+            fps,
+            skip,
+            ffmpegPassthroughParameters);
 
         using var stdin = ffmpeg.StandardInput.BaseStream;
 
@@ -63,12 +79,12 @@ public class TrackingSplitter(
         // initial reset is now done inside CameraController
 
         var camera = new CameraController(
-        videoWidth,
-        videoHeight,
-        originalCropWidth,
-        originalCropHeight,
-        kalman
-        );
+            videoWidth,
+            videoHeight,
+            originalCropWidth,
+            originalCropHeight,
+            kalman
+            );
 
         var startTime = DateTime.UtcNow;
 
@@ -80,7 +96,7 @@ public class TrackingSplitter(
             Rect?    objectBox    = null;
             Point2f? objectCenter = null;
 
-            var objects = detector.DetectAll(frame, videoWidth, videoHeight);
+            var objects = _detector.DetectAll(frame, videoWidth, videoHeight);
             var primary = SelectTrackedObject(objects, kalman.LastMeasurement);
 
             camera.Update(primary);
@@ -94,7 +110,7 @@ public class TrackingSplitter(
             var lostFrames     = camera.LostFrames;
             var roi            = camera.Roi;
 
-            if (debugOverlay)
+            if (_debugOverlay)
             {
                 if (objectBox.HasValue)
                 {
@@ -117,7 +133,7 @@ public class TrackingSplitter(
                 DrawText(frame, $"Camera: {cameraCenter.X:F1},{cameraCenter.Y:F1}", 20, 160, Scalar.White);
             }
 
-            if (debugOverlay)
+            if (_debugOverlay)
             {
                 frame.CopyTo(outputBgr);
                 Marshal.Copy(outputBgr.Data, videoBuffer, 0, frameBytes);
@@ -134,7 +150,7 @@ public class TrackingSplitter(
 
             var elapsed         = DateTime.UtcNow - startTime;
             var progress        = (double)i / totalFrames;
-            var speed           = i > 0 ? i / elapsed.TotalSeconds : 0.0;
+            var speed           = i > 0 ? (i / elapsed.TotalSeconds)/fps : 0.0;
             var remainingFrames = totalFrames - i;
             var etaSeconds      = speed > 0 ? remainingFrames / speed : 0;
             var eta             = TimeSpan.FromSeconds(etaSeconds);
@@ -147,7 +163,9 @@ public class TrackingSplitter(
 
         await ffmpeg.WaitForExitAsync();
         if (ffmpeg.ExitCode != 0)
-            throw new Exception("FFmpeg NVENC encoding failed");
+            LogError($"Segment {_segmentNo} FFmpeg encoding failed");
+        else
+            LogInfo($"Segment {_segmentNo} processing completed");
     }
 
     private (Rect box, Point2f center)? SelectTrackedObject(
@@ -243,7 +261,10 @@ public class TrackingSplitter(
             {
                 string? line;
                 while ((line = process.StandardError.ReadLine()) != null)
-                    Console.WriteLine($"[ffmpeg] {line}");
+                {
+                    if (_plainText)
+                        Console.WriteLine($"[ffmpeg] {line}");
+                }
             }
             catch { }
         });
@@ -256,4 +277,5 @@ public class TrackingSplitter(
         Cv2.PutText(img, text, new Point(x, y),
             HersheyFonts.HersheySimplex, 0.6, color, 2);
     }
+
 }

@@ -51,18 +51,15 @@ public sealed class YoloOnnxObjectDetector : LoggingBase, IObjectDetector, IDisp
 
         public Detection(float x, float y, float w, float h, float score)
         {
-            X = x;
-            Y = y;
-            Width = w;
+            X      = x;
+            Y      = y;
+            Width  = w;
             Height = h;
-            Score = score;
+            Score  = score;
         }
     }
 
-    public YoloOnnxObjectDetector(
-        Action<string, ConsoleColor, string> log,
-        Action<double, TimeSpan, double> drawProgress
-    ) : base(log, drawProgress)
+    public YoloOnnxObjectDetector() : base(-1)
     {
         var options = new SessionOptions();
         options.AppendExecutionProvider_DML();
@@ -75,8 +72,8 @@ public sealed class YoloOnnxObjectDetector : LoggingBase, IObjectDetector, IDisp
         _inputName = _session.InputMetadata.Keys.First();
         _outputName = _session.OutputMetadata.Keys.First();
 
-        foreach (var kv in _session.OutputMetadata)
-            LogInfo($"[YoloOnnx] {kv.Key}: {string.Join(",", kv.Value.Dimensions)} {kv.Value.ElementType}");
+        //foreach (var kv in _session.OutputMetadata)
+        //    LogInfo($"[YoloOnnx] {kv.Key}: {string.Join(",", kv.Value.Dimensions)} {kv.Value.ElementType}");
 
         // Preallocate tensor buffer (fixed size for lifetime)
         _inputBuffer = new float[1 * 3 * _inputHeight * _inputWidth];

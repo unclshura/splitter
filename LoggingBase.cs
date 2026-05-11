@@ -1,20 +1,20 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
 namespace splitter;
 
-public class LoggingBase(
-    Action<string/*level*/, ConsoleColor /*color*/, string /*message*/> log,
-    Action<double /*percent*/, TimeSpan /*duration*/, double /*fps*/> drawProgress
-        )
+public abstract class LoggingBase(int progressLine)
 {
-    protected Action<string/*level*/, ConsoleColor /*color*/, string /*message*/> Log          = log;
-    protected Action<double /*percent*/, TimeSpan /*duration*/, double /*fps*/>   DrawProgress = drawProgress;
+    protected void Log(string level, ConsoleColor color, string message)
+        => Logger.Log(level, color, message);
 
-    protected void LogInfo(string msg)    => Log("[INFO]", ConsoleColor.Cyan, msg);
-    protected void LogSuccess(string msg) => Log("[ OK ]", ConsoleColor.Green, msg);
-    protected void LogWarn(string msg)    => Log("[WARN]", ConsoleColor.Yellow, msg);
-    protected void LogError(string msg)   => Log("[ERR ]", ConsoleColor.Red, msg);
+    protected void LogInfo(string message)
+        => Logger.LogInfo(message);
 
+    protected void LogWarn(string message)
+        => Logger.LogWarn(message);
+
+    protected void LogError(string message)
+        => Logger.LogError(message);
+
+    protected void DrawProgress(double percent, TimeSpan eta, double fps)
+        => Logger.DrawProgress(progressLine, percent, eta, fps);
 }
