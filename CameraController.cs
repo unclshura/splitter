@@ -20,9 +20,12 @@ public sealed class CameraController
     private readonly int _lostFreezeFrames;
     private readonly float _cameraEasing;
 
-    // --- NEW: dropout tolerance ---
-    private const int DropoutToleranceFrames = 20; // adjust as needed
+    // --- Dropout tolerance ---
+    private const int DropoutToleranceFrames = 20;
     private int _dropoutCounter;
+
+    // --- NEW: EMA smoothing ---
+    private const float EmaFactor = 0.85f; // 0.85 = smooth but responsive
 
     private int _lostFrames;
     private Point2f _cameraCenter;
@@ -75,20 +78,18 @@ public sealed class CameraController
         }
 
         // ---------------------------------------------------------
-        // NEW: dropout tolerance
+        // Dropout tolerance
         // ---------------------------------------------------------
         if (!objectCenter.HasValue)
         {
             if (_dropoutCounter < DropoutToleranceFrames)
             {
-                // Treat as still tracked
                 objectCenter = _kalman.LastMeasurement;
                 _dropoutCounter++;
             }
         }
         else
         {
-            // Reset dropout counter when detection is present
             _dropoutCounter = 0;
         }
 
@@ -102,7 +103,7 @@ public sealed class CameraController
             if (_lostFrames <= _lostFreezeFrames)
             {
                 _state = TrackState.LostFreeze;
-                objectCenter = null; // Kalman predicts but camera won't move
+                objectCenter = null;
             }
             else
             {
@@ -123,11 +124,21 @@ public sealed class CameraController
         {
             smoothedCenter = _kalman.Update(objectCenter);
 
+            // ---------------------------------------------------------
+            // NEW: EMA smoothing
+            // ---------------------------------------------------------
+            smoothedCenter = new Point2f(
+                smoothedCenter.X * (1 - EmaFactor) + _cameraCenter.X * EmaFactor,
+                smoothedCenter.Y * (1 - EmaFactor) + _cameraCenter.Y * EmaFactor
+            );
+
+            // fast easing
             float fastEasing = 0.015f;
             _cameraCenter = new Point2f(
                 _cameraCenter.X + (smoothedCenter.X - _cameraCenter.X) * fastEasing,
                 _cameraCenter.Y + (smoothedCenter.Y - _cameraCenter.Y) * fastEasing);
 
+            // configurable easing
             _cameraCenter = new Point2f(
                 _cameraCenter.X + (smoothedCenter.X - _cameraCenter.X) * _cameraEasing,
                 _cameraCenter.Y + (smoothedCenter.Y - _cameraCenter.Y) * _cameraEasing);
