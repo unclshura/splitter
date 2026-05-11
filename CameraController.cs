@@ -17,15 +17,14 @@ public sealed class CameraController
     private readonly int _cropWidth;
     private readonly int _cropHeight;
     private readonly KalmanTracker _kalman;
-    private readonly int _lostFreezeFrames;
-    private readonly float _cameraEasing;
-
-    // --- Dropout tolerance ---
-    private const int DropoutToleranceFrames = 20;
     private int _dropoutCounter;
 
-    // --- NEW: EMA smoothing ---
-    private const float EmaFactor = 0.85f; // 0.85 = smooth but responsive
+    // --- Dropout tolerance ---
+    private const int   DropoutToleranceFrames = 20;
+    private const float EmaFactor = 0.65f;        // smoother but responsive
+    private const float CameraEasing = 0.03f;     // stronger follow-through
+    private const int   LostFreezeFrames = 60;    // 2 seconds at 30 FPS
+
 
     private int _lostFrames;
     private Point2f _cameraCenter;
@@ -40,20 +39,17 @@ public sealed class CameraController
         int videoHeight,
         int cropWidth,
         int cropHeight,
-        KalmanTracker kalman,
-        int lostFreezeFrames,
-        float cameraEasing)
+        KalmanTracker kalman
+        )
     {
-        _videoWidth = videoWidth;
+        _videoWidth  = videoWidth;
         _videoHeight = videoHeight;
-        _cropWidth = cropWidth;
-        _cropHeight = cropHeight;
-        _kalman = kalman;
-        _lostFreezeFrames = lostFreezeFrames;
-        _cameraEasing = cameraEasing;
+        _cropWidth   = cropWidth;
+        _cropHeight  = cropHeight;
+        _kalman      = kalman;
 
         _cameraCenter = new Point2f(videoWidth / 2f, videoHeight / 2f);
-        _state = TrackState.Tracking;
+        _state        = TrackState.Tracking;
 
         _kalman.Reset(_cameraCenter);
     }
@@ -100,7 +96,7 @@ public sealed class CameraController
         {
             _lostFrames++;
 
-            if (_lostFrames <= _lostFreezeFrames)
+            if (_lostFrames <= LostFreezeFrames)
             {
                 _state = TrackState.LostFreeze;
                 objectCenter = null;
@@ -132,16 +128,10 @@ public sealed class CameraController
                 smoothedCenter.Y * (1 - EmaFactor) + _cameraCenter.Y * EmaFactor
             );
 
-            // fast easing
-            float fastEasing = 0.015f;
             _cameraCenter = new Point2f(
-                _cameraCenter.X + (smoothedCenter.X - _cameraCenter.X) * fastEasing,
-                _cameraCenter.Y + (smoothedCenter.Y - _cameraCenter.Y) * fastEasing);
+                _cameraCenter.X + (smoothedCenter.X - _cameraCenter.X) * CameraEasing,
+                _cameraCenter.Y + (smoothedCenter.Y - _cameraCenter.Y) * CameraEasing);
 
-            // configurable easing
-            _cameraCenter = new Point2f(
-                _cameraCenter.X + (smoothedCenter.X - _cameraCenter.X) * _cameraEasing,
-                _cameraCenter.Y + (smoothedCenter.Y - _cameraCenter.Y) * _cameraEasing);
         }
         else if (_state == TrackState.LostFreeze)
         {

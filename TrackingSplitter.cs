@@ -12,9 +12,6 @@ public class TrackingSplitter(
     Action<double /*percent*/, TimeSpan /*duration*/, double /*fps*/> drawProgress
     ) : LoggingBase(log, drawProgress)
 {
-    private const int   LostFreezeFrames = 60; // 2 seconds at 30 FPS
-    private const float CameraEasing     = 0.03f;
-
     public async Task TrackAndExtract(
         string srcFileName,
         string destFileName,
@@ -70,9 +67,8 @@ public class TrackingSplitter(
         videoHeight,
         originalCropWidth,
         originalCropHeight,
-        kalman,
-        LostFreezeFrames,
-        CameraEasing);
+        kalman
+        );
 
         var startTime = DateTime.UtcNow;
 
