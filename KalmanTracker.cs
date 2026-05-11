@@ -1,6 +1,6 @@
 ﻿namespace splitter;
 
-internal sealed class KalmanTracker
+public sealed class KalmanTracker
 {
     // State vector: [x, y, vx, vy]
     private float[] _state = new float[4];

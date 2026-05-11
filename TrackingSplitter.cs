@@ -15,13 +15,6 @@ public class TrackingSplitter(
     private const int   LostFreezeFrames = 60; // 2 seconds at 30 FPS
     private const float CameraEasing     = 0.03f;
 
-    private enum TrackState
-    {
-        Tracking,
-        LostFreeze,
-        LostDrift
-    }
-
     public async Task TrackAndExtract(
         string srcFileName,
         string destFileName,
@@ -49,38 +42,39 @@ public class TrackingSplitter(
 
         Console.WriteLine($"[TrackingSplitter] skip={skip}, duration={duration}, fps={fps}, totalFrames={totalFrames}");
 
-        // encoder size depends on mode
         var encWidth  = debugOverlay ? videoWidth  : originalCropWidth;
         var encHeight = debugOverlay ? videoHeight : originalCropHeight;
 
         var ffmpeg = StartFfmpegNvenc(
-            srcFileName,
-            destFileName,
-            encWidth,
-            encHeight,
-            fps,
-            skip,
-            passthrough);
+        srcFileName,
+        destFileName,
+        encWidth,
+        encHeight,
+        fps,
+        skip,
+        passthrough);
 
         using var stdin = ffmpeg.StandardInput.BaseStream;
 
-        // Reusable frame and output mat
         using var frame     = new Mat();
         using var outputBgr = new Mat(encHeight, encWidth, MatType.CV_8UC3);
 
-        // Reusable raw video buffer
-        var frameBytes = encWidth * encHeight * 3;
+        var frameBytes  = encWidth * encHeight * 3;
         var videoBuffer = new byte[frameBytes];
 
         var kalman = new KalmanTracker();
-        kalman.Reset(new Point2f(videoWidth / 2f, videoHeight / 2f));
+        // initial reset is now done inside CameraController
 
-        var lostFrames       = 0;
-        var reacquireCounter = 0; // kept for overlay display
+        var camera = new CameraController(
+        videoWidth,
+        videoHeight,
+        originalCropWidth,
+        originalCropHeight,
+        kalman,
+        LostFreezeFrames,
+        CameraEasing);
 
-        var cameraCenter = new Point2f(videoWidth / 2f, videoHeight / 2f);
-        var startTime    = DateTime.UtcNow;
-        var state        = TrackState.Tracking;
+        var startTime = DateTime.UtcNow;
 
         for (var i = 0; i < totalFrames; i++)
         {
@@ -93,109 +87,19 @@ public class TrackingSplitter(
             var objects = detector.DetectAll(frame, videoWidth, videoHeight);
             var primary = SelectTrackedObject(objects, kalman.LastMeasurement);
 
-            if (primary.HasValue)
-            {
-                objectCenter = primary.Value.center;
-                objectBox = primary.Value.box;
-            }
+            camera.Update(primary);
 
-            bool isLost = !objectCenter.HasValue;
+            objectBox = camera.ObjectBox;
+            objectCenter = camera.ObjectCenter;
 
-            // LOST / REACQUIRE STATE MACHINE
-            if (isLost)
-            {
-                lostFrames++;
-
-                if (lostFrames <= LostFreezeFrames)
-                {
-                    // LOST_FREEZE: freeze camera
-                    state = TrackState.LostFreeze;
-                    objectCenter = null; // Kalman predicts but camera won't move
-                }
-                else
-                {
-                    // LOST_DRIFT: drift camera to center
-                    state = TrackState.LostDrift;
-                    objectCenter = new Point2f(videoWidth / 2f, videoHeight / 2f);
-                }
-            }
-            else
-            {
-                // Object reacquired
-                state = TrackState.Tracking;
-                lostFrames = 0;
-            }
-
-            // KALMAN + CAMERA UPDATE
-            Point2f smoothedCenter;
-
-            if (state == TrackState.Tracking)
-            {
-                smoothedCenter = kalman.Update(objectCenter);
-
-                float easing = 0.015f; // faster tracking
-                cameraCenter = new Point2f(
-                    cameraCenter.X + (smoothedCenter.X - cameraCenter.X) * easing,
-                    cameraCenter.Y + (smoothedCenter.Y - cameraCenter.Y) * easing);
-            }
-            else if (state == TrackState.LostFreeze)
-            {
-                // Freeze camera — do nothing
-                smoothedCenter = kalman.LastMeasurement ?? new Point2f(0, 0);
-            }
-            else // LOST_DRIFT
-            {
-                smoothedCenter = kalman.Update(objectCenter);
-
-                float driftEasing = 0.01f;
-                var fallbackCenter = new Point2f(videoWidth / 2f, videoHeight / 2f);
-
-                cameraCenter = new Point2f(
-                    cameraCenter.X + (fallbackCenter.X - cameraCenter.X) * driftEasing,
-                    cameraCenter.Y + (fallbackCenter.Y - cameraCenter.Y) * driftEasing);
-            }
-
-            var halfW = originalCropWidth  / 2f;
-            var halfH = originalCropHeight / 2f;
-
-            smoothedCenter.X = Math.Clamp(smoothedCenter.X, halfW, videoWidth - halfW);
-            smoothedCenter.Y = Math.Clamp(smoothedCenter.Y, halfH, videoHeight - halfH);
-
-            if (state == TrackState.Tracking)
-            {
-                smoothedCenter = kalman.Update(objectCenter);
-
-                cameraCenter = new Point2f(
-                    cameraCenter.X + (smoothedCenter.X - cameraCenter.X) * CameraEasing,
-                    cameraCenter.Y + (smoothedCenter.Y - cameraCenter.Y) * CameraEasing);
-            }
-            else if (state == TrackState.LostFreeze)
-            {
-                // Freeze camera — do nothing
-            }
-            else if (state == TrackState.LostDrift)
-            {
-                var fallbackCenter = new Point2f(videoWidth / 2f, videoHeight / 2f);
-
-                cameraCenter = new Point2f(
-                    cameraCenter.X + (fallbackCenter.X - cameraCenter.X) * 0.01f,
-                    cameraCenter.Y + (fallbackCenter.Y - cameraCenter.Y) * 0.01f);
-            }
-
-            cameraCenter.X = Math.Clamp(cameraCenter.X, halfW, videoWidth - halfW);
-            cameraCenter.Y = Math.Clamp(cameraCenter.Y, halfH, videoHeight - halfH);
-
-            var x = (int)Math.Round(cameraCenter.X - halfW);
-            var y = (int)Math.Round(cameraCenter.Y - halfH);
-
-            x = Math.Clamp(x, 0, videoWidth - originalCropWidth);
-            y = Math.Clamp(y, 0, videoHeight - originalCropHeight);
-
-            var roi = new Rect(x, y, originalCropWidth, originalCropHeight);
+            var smoothedCenter = camera.SmoothedCenter;
+            var cameraCenter   = camera.CameraCenter;
+            var state          = camera.State;
+            var lostFrames     = camera.LostFrames;
+            var roi            = camera.Roi;
 
             if (debugOverlay)
             {
-                // overlays always drawn on frame
                 if (objectBox.HasValue)
                 {
                     var fb = objectBox.Value;
@@ -213,23 +117,18 @@ public class TrackingSplitter(
 
                 DrawText(frame, $"Faces: {objects.Count}", 20, 40, Scalar.White);
                 DrawText(frame, $"LostFrames: {lostFrames}", 20, 70, Scalar.White);
-                DrawText(frame, $"Reacquire: {reacquireCounter}", 20, 100, Scalar.White);
                 DrawText(frame, $"Noise: {kalman.CurrentNoise:F3}", 20, 130, Scalar.White);
                 DrawText(frame, $"Camera: {cameraCenter.X:F1},{cameraCenter.Y:F1}", 20, 160, Scalar.White);
             }
 
             if (debugOverlay)
             {
-                // DEBUG MODE: write FULL FRAME with overlays
-                // Ensure contiguous buffer by copying into preallocated outputBgr
                 frame.CopyTo(outputBgr);
-
                 Marshal.Copy(outputBgr.Data, videoBuffer, 0, frameBytes);
                 stdin.Write(videoBuffer, 0, frameBytes);
             }
             else
             {
-                // PRODUCTION MODE: actual crop
                 using var cropped = new Mat(frame, roi);
                 cropped.CopyTo(outputBgr);
 
