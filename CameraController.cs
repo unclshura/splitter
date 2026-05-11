@@ -20,6 +20,10 @@ public sealed class CameraController
     private readonly int _lostFreezeFrames;
     private readonly float _cameraEasing;
 
+    // --- NEW: dropout tolerance ---
+    private const int DropoutToleranceFrames = 20; // adjust as needed
+    private int _dropoutCounter;
+
     private int _lostFrames;
     private Point2f _cameraCenter;
     private TrackState _state;
@@ -70,6 +74,24 @@ public sealed class CameraController
             objectBox = primary.Value.box;
         }
 
+        // ---------------------------------------------------------
+        // NEW: dropout tolerance
+        // ---------------------------------------------------------
+        if (!objectCenter.HasValue)
+        {
+            if (_dropoutCounter < DropoutToleranceFrames)
+            {
+                // Treat as still tracked
+                objectCenter = _kalman.LastMeasurement;
+                _dropoutCounter++;
+            }
+        }
+        else
+        {
+            // Reset dropout counter when detection is present
+            _dropoutCounter = 0;
+        }
+
         bool isLost = !objectCenter.HasValue;
 
         // LOST / REACQUIRE STATE MACHINE
@@ -79,20 +101,17 @@ public sealed class CameraController
 
             if (_lostFrames <= _lostFreezeFrames)
             {
-                // LOST_FREEZE: freeze camera
                 _state = TrackState.LostFreeze;
                 objectCenter = null; // Kalman predicts but camera won't move
             }
             else
             {
-                // LOST_DRIFT: drift camera to center
                 _state = TrackState.LostDrift;
                 objectCenter = new Point2f(_videoWidth / 2f, _videoHeight / 2f);
             }
         }
         else
         {
-            // Object reacquired
             _state = TrackState.Tracking;
             _lostFrames = 0;
         }
@@ -104,20 +123,17 @@ public sealed class CameraController
         {
             smoothedCenter = _kalman.Update(objectCenter);
 
-            // first, faster internal easing (as in your original code)
             float fastEasing = 0.015f;
             _cameraCenter = new Point2f(
                 _cameraCenter.X + (smoothedCenter.X - _cameraCenter.X) * fastEasing,
                 _cameraCenter.Y + (smoothedCenter.Y - _cameraCenter.Y) * fastEasing);
 
-            // then, external configurable easing
             _cameraCenter = new Point2f(
                 _cameraCenter.X + (smoothedCenter.X - _cameraCenter.X) * _cameraEasing,
                 _cameraCenter.Y + (smoothedCenter.Y - _cameraCenter.Y) * _cameraEasing);
         }
         else if (_state == TrackState.LostFreeze)
         {
-            // Freeze camera — do nothing
             smoothedCenter = _kalman.LastMeasurement ?? _cameraCenter;
         }
         else // LOST_DRIFT
