@@ -16,8 +16,9 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
     private readonly bool _plainText;
 
     private readonly IObjectDetector _detector;
+    private readonly CommandLine     _cmd;
 
-    public TrackingSplitter(int segmentNo, int cropWidth, int cropHeight, bool debugOverlay, bool plainText, IObjectDetector detector) 
+    public TrackingSplitter(int segmentNo, int cropWidth, int cropHeight, bool debugOverlay, bool plainText, IObjectDetector detector, CommandLine cmd) 
         : base(segmentNo)
     {
         _segmentNo    = segmentNo;
@@ -26,6 +27,7 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
         _debugOverlay = debugOverlay;
         _plainText    = plainText;
         _detector     = detector;
+        _cmd          = cmd;
     }
 
     public void Dispose()
@@ -83,7 +85,8 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
             videoHeight,
             originalCropWidth,
             originalCropHeight,
-            kalman
+            kalman,
+            _cmd
             );
 
         var startTime = DateTime.UtcNow;

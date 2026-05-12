@@ -17,49 +17,58 @@ public sealed class CameraController
     private readonly int _cropWidth;
     private readonly int _cropHeight;
     private readonly KalmanTracker _kalman;
+    private readonly CommandLine _cmd;
     private int _dropoutCounter;
 
     // --- Dropout tolerance ---
-    private const int   DropoutToleranceFrames = 20;
-    private const float EmaFactor = 0.65f;        // smoother but responsive
-    private const float CameraEasing = 0.03f;     // stronger follow-through
-    private const int   LostFreezeFrames = 60;    // 2 seconds at 30 FPS
+    private int   _dropoutToleranceFrames = 20;
+    private float _emaFactor              = 0.65f; // smoother but responsive
+    private float _cameraEasing           = 0.03f; // stronger follow-through
+    private int   _lostFreezeFrames       = 60;    // 2 seconds at 30 FPS
 
 
-    private int _lostFrames;
-    private Point2f _cameraCenter;
+    private int        _lostFrames;
+    private Point2f    _cameraCenter;
     private TrackState _state;
-    private Point2f _smoothedCenter;
-    private Rect? _objectBox;
-    private Point2f? _objectCenter;
-    private Rect _roi;
+    private Point2f    _smoothedCenter;
+    private Rect?      _objectBox;
+    private Point2f?   _objectCenter;
+    private Rect       _roi;
 
     public CameraController(
         int videoWidth,
         int videoHeight,
         int cropWidth,
         int cropHeight,
-        KalmanTracker kalman
+        KalmanTracker kalman,
+        CommandLine cmd
         )
     {
-        _videoWidth  = videoWidth;
-        _videoHeight = videoHeight;
-        _cropWidth   = cropWidth;
-        _cropHeight  = cropHeight;
-        _kalman      = kalman;
-
-        _cameraCenter = new Point2f(videoWidth / 2f, videoHeight / 2f);
+        _videoWidth   = videoWidth;
+        _videoHeight  = videoHeight;
+        _cropWidth    = cropWidth;
+        _cropHeight   = cropHeight;
+        _kalman       = kalman;
+        _cmd          = cmd;
+        _cameraCenter = DefaultCenter;
         _state        = TrackState.Tracking;
+
+    cmd.Override(ref _dropoutToleranceFrames, "DropoutToleranceFrames");
+    cmd.Override(ref _emaFactor,              "EmaFactor");
+    cmd.Override(ref _cameraEasing,           "CameraEasing");
+    cmd.Override(ref _lostFreezeFrames,       "LostFreezeFrames");
 
         _kalman.Reset(_cameraCenter);
     }
 
-    public int LostFrames => _lostFrames;
-    public Point2f CameraCenter => _cameraCenter;
-    public TrackState State => _state;
+    private Point2f DefaultCenter => _cmd.GravitateTo ?? new Point2f(_videoWidth / 2f, _videoHeight / 2f);
+
+    public int LostFrames         => _lostFrames;
+    public Point2f CameraCenter   => _cameraCenter;
+    public TrackState State       => _state;
     public Point2f SmoothedCenter => _smoothedCenter;
-    public Rect? ObjectBox => _objectBox;
-    public Point2f? ObjectCenter => _objectCenter;
+    public Rect? ObjectBox        => _objectBox;
+    public Point2f? ObjectCenter  => _objectCenter;
     public Rect Roi => _roi;
 
     public void Update((Rect box, Point2f center)? primary)
@@ -78,7 +87,7 @@ public sealed class CameraController
         // ---------------------------------------------------------
         if (!objectCenter.HasValue)
         {
-            if (_dropoutCounter < DropoutToleranceFrames)
+            if (_dropoutCounter < _dropoutToleranceFrames)
             {
                 objectCenter = _kalman.LastMeasurement;
                 _dropoutCounter++;
@@ -96,7 +105,7 @@ public sealed class CameraController
         {
             _lostFrames++;
 
-            if (_lostFrames <= LostFreezeFrames)
+            if (_lostFrames <= _lostFreezeFrames)
             {
                 _state = TrackState.LostFreeze;
                 objectCenter = null;
@@ -104,7 +113,7 @@ public sealed class CameraController
             else
             {
                 _state = TrackState.LostDrift;
-                objectCenter = new Point2f(_videoWidth / 2f, _videoHeight / 2f);
+                objectCenter = DefaultCenter;
             }
         }
         else
@@ -124,13 +133,13 @@ public sealed class CameraController
             // NEW: EMA smoothing
             // ---------------------------------------------------------
             smoothedCenter = new Point2f(
-                smoothedCenter.X * (1 - EmaFactor) + _cameraCenter.X * EmaFactor,
-                smoothedCenter.Y * (1 - EmaFactor) + _cameraCenter.Y * EmaFactor
+                smoothedCenter.X * (1 - _emaFactor) + _cameraCenter.X * _emaFactor,
+                smoothedCenter.Y * (1 - _emaFactor) + _cameraCenter.Y * _emaFactor
             );
 
             _cameraCenter = new Point2f(
-                _cameraCenter.X + (smoothedCenter.X - _cameraCenter.X) * CameraEasing,
-                _cameraCenter.Y + (smoothedCenter.Y - _cameraCenter.Y) * CameraEasing);
+                _cameraCenter.X + (smoothedCenter.X - _cameraCenter.X) * _cameraEasing,
+                _cameraCenter.Y + (smoothedCenter.Y - _cameraCenter.Y) * _cameraEasing);
 
         }
         else if (_state == TrackState.LostFreeze)
@@ -165,8 +174,9 @@ public sealed class CameraController
         y = Math.Clamp(y, 0, _videoHeight - _cropHeight);
 
         _roi = new Rect(x, y, _cropWidth, _cropHeight);
+
         _smoothedCenter = smoothedCenter;
-        _objectBox = objectBox;
-        _objectCenter = objectCenter;
+        _objectBox      = objectBox;
+        _objectCenter   = objectCenter;
     }
 }

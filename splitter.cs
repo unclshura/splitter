@@ -87,7 +87,7 @@ static class Program
                     "body" => new YoloOnnxObjectDetector(),
                     _      => throw new InvalidOperationException($"Unknown detector: {detect}")
                 };
-                return new TrackingSplitter(i, crop.Value.width, crop.Value.height, debug, cmd.PlainText, detector);
+                return new TrackingSplitter(i, crop.Value.width, crop.Value.height, debug, cmd.PlainText, detector, cmd);
             };
         }
         else

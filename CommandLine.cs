@@ -10,6 +10,7 @@ public sealed class CommandLine
     public string InputFile               { get; private init; }
     public string OutputFolder            { get; private init; }
     public (int width, int height)? Crop  { get; private init; }
+    public Point2f? GravitateTo           { get; private init; }
     public string? Mask                   { get; private init; }
     public bool Debug                     { get; private init; }
     public string? Detect                 { get; private init; }
@@ -19,6 +20,7 @@ public sealed class CommandLine
     public bool EstimateOnly              { get; private init; }
     public bool ForceFixed                { get; private init; }
     public bool SingleThreaded            { get; private init; }
+    public Dictionary<string, string> Parameters { get; } = [];
 
     public bool IsValid => !string.IsNullOrEmpty(InputFile) && !string.IsNullOrEmpty(OutputFolder);
 
@@ -84,6 +86,11 @@ public sealed class CommandLine
             {
                 SingleThreaded = true;
             }
+            else if (arg.StartsWith("--gravitate="))
+            {
+                var val = arg.Substring("--gravitate=".Length);
+                GravitateTo = ParseGravitate(val);
+            }
             else if (arg.StartsWith("--duration="))
             {
                 var dur = arg.Substring("--duration=".Length);
@@ -94,6 +101,17 @@ public sealed class CommandLine
                     return;
                 }
             }
+            else if (arg.StartsWith("-p:", StringComparison.Ordinal))
+            {
+                var spec = arg.Substring("-p:".Length);
+                if (!TryParseParameter(spec, out var key, out var value))
+                {
+                    Console.WriteLine($"Invalid -p parameter: {spec}");
+                    return;
+                }
+
+                Parameters[key] = value;
+            }
             else if (arg == "--estimate")
             {
                 EstimateOnly = true;
@@ -103,6 +121,63 @@ public sealed class CommandLine
                 ForceFixed = true;
             }
         }
+    }
+
+    public void Override<T>(ref T member, string name)
+    {
+        if (!Parameters.TryGetValue(name, out var raw))
+            return;
+
+        try
+        {
+            // Convert.ChangeType handles int, float, double, etc.
+            var converted = (T)Convert.ChangeType(
+            raw,
+            typeof(T),
+            CultureInfo.InvariantCulture
+        );
+
+            member = converted;
+        }
+        catch
+        {
+            Console.WriteLine($"Invalid value for parameter '{name}': {raw}");
+        }
+    }
+
+    private static bool TryParseParameter(string spec, out string key, out string value)
+    {
+        key = "";
+        value = "";
+
+        var idx = spec.IndexOf('=');
+        if (idx <= 0 || idx == spec.Length - 1)
+            return false;
+
+        key = spec.Substring(0, idx).Trim();
+        value = spec.Substring(idx + 1).Trim();
+
+        return key.Length > 0;
+    }
+
+    private static Point2f? ParseGravitate(string value)
+    {
+        // Expected format: "<x>:<y>"
+        var parts = value.Split(':');
+        if (parts.Length != 2)
+            return null;
+
+        if (!float.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var x))
+            return null;
+
+        if (!float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var y))
+            return null;
+
+        // Normalized range check (0.0–1.0)
+        if (x < 0f || x > 1f || y < 0f || y > 1f)
+            return null;
+
+        return new Point2f(x, y);
     }
 
     private static (int width, int height)? ParseCrop(string v)
@@ -201,12 +276,25 @@ Options:
   --detect=<name>        Object detector to use for tracking.
                          Values: face (UltraFace), body (YoloOnnx, default), none (no tracking, just a center)
 
+  --gravitate=<x:y>      Gravitate towards a specific point (x, y) in the video frame.
+                         Coordinates are normalized (0.0 to 1.0).
+                         Example: --gravitate=0.2:0.5 (gravitate towards left-center)
+
   --text                 Display log in plain text.
 
   --single-thread        Run in single-threaded mode (no parallel ffmpeg processes).
                          Useful for debugging or if system is resource-constrained.
 
   --debug                Show debug overlay during face tracking.
+
+  -p:<name>=<value>      Set a custom parameter for the object detector.
+                         Example: -p:confidence=0.5
+
+                         Tracking splitter defaults:
+                            DropoutToleranceFrames = 20;
+                            EmaFactor              = 0.65;
+                            CameraEasing           = 0.03;
+                            LostFreezeFrames       = 60;   
 
 Passthrough:
   Anything after -- is passed directly to ffmpeg.
