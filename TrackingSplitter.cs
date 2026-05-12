@@ -56,7 +56,7 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
         var originalCropWidth  = _cropWidth;
         var originalCropHeight = _cropHeight;
 
-        Console.WriteLine($"[TrackingSplitter] skip={skip}, duration={duration}, fps={fps}, totalFrames={totalFrames}");
+        LogInfo($"[TrackingSplitter] skip={skip}, duration={duration}, fps={fps}, totalFrames={totalFrames}");
 
         var encWidth  = _debugOverlay ? videoWidth  : originalCropWidth;
         var encHeight = _debugOverlay ? videoHeight : originalCropHeight;

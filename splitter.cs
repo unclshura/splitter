@@ -1,20 +1,58 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using Spectre.Console;
 using splitter;
 
 static class Program
 {
     private static ILogger _logger = null!;
-    static async Task Main(string[] args)
+    static async Task<int> Main(string[] args)
     {
+        Task? uiTask = null;
+
         var cmd = new CommandLine(args);
-        _logger = new Logger(cmd);
-        
+        if ( !cmd.IsValid)
+            return -1;
+
+        if (cmd.PlainText)
+        {
+            _logger = new TextLogger();
+        }
+        else
+        {
+            Console.SetBufferSize(Console.WindowWidth, Console.BufferHeight);
+
+            var logger = new SpectreConsoleLogger
+            {
+                Title = "Splitter",
+                NumberOfProcesses = cmd.SingleThreaded ? 1 : Math.Max(1, Environment.ProcessorCount / 2)
+            };
+            _logger = logger;
+
+            using var cts = new CancellationTokenSource();
+
+            uiTask = logger.RunAsync(cts.Token);
+        }
+
+        var success = await ProcessAll(cmd);
+
+        if (uiTask != null)
+        {
+            await uiTask;
+        }
+        if (_logger is IDisposable disposable)
+            disposable.Dispose();
+
+        return success ? 1 : 0;
+    }
+
+    private static async Task<bool> ProcessAll(CommandLine cmd)
+    {
         if (!File.Exists(cmd.InputFile))
         {
             LogError("Input file not found.");
-            return;
+            return false;
         }
 
         if (!Directory.Exists(cmd.OutputFolder))
@@ -28,7 +66,7 @@ static class Program
         if (duration <= 0)
         {
             LogError("Could not read duration.");
-            return;
+            return false;
         }
 
         var target = cmd.OverrideTargetDuration ?? 58.0;
@@ -58,7 +96,7 @@ static class Program
             LogInfo(cmd.ForceFixed
                 ? $"Fixed segment length: {segmentLength:F2}s (last may be shorter)"
                 : $"Equalized segment length: {segmentLength:F2}s");
-            return;
+            return false;
         }
 
         LogInfo($"Duration: {duration:F2}s");
@@ -95,6 +133,7 @@ static class Program
         }
 
         LogInfo("Done.");
+        return true;
     }
 
     private static void LogInfo(string message)
