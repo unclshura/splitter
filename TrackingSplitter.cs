@@ -167,7 +167,7 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
 
         await ffmpeg.WaitForExitAsync();
 
-        ClearProgress(_segmentNo);
+        ClearProgress();
 
         if (ffmpeg.ExitCode != 0)
             LogError($"Segment {name} FFmpeg encoding failed");
