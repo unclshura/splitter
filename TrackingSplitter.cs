@@ -42,7 +42,8 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
         if (!capture.IsOpened())
             throw new Exception("Cannot open video");
 
-        var skip = TimeSpan.FromSeconds(start);
+        var name     = Path.GetFileNameWithoutExtension(outputFile);
+        var skip     = TimeSpan.FromSeconds(start);
         var duration = TimeSpan.FromSeconds(length);
 
         capture.Set(VideoCaptureProperties.PosMsec, start);
@@ -158,17 +159,20 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
             var etaSeconds      = speed > 0 ? remainingFrames / speed : 0;
             var eta             = TimeSpan.FromSeconds(etaSeconds);
 
-            DrawProgress(progress, eta, speed);
+            DrawProgress(name, progress, eta, speed);
         }
 
         stdin.Flush();
         stdin.Close();
 
         await ffmpeg.WaitForExitAsync();
+
+        ClearProgress(_segmentNo);
+
         if (ffmpeg.ExitCode != 0)
-            LogError($"Segment {_segmentNo} FFmpeg encoding failed");
+            LogError($"Segment {name} FFmpeg encoding failed");
         else
-            LogInfo($"Segment {_segmentNo} processing completed");
+            LogInfo($"Segment {name} processing completed");
     }
 
     private (Rect box, Point2f center)? SelectTrackedObject(

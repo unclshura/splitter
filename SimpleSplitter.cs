@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using FFmpeg.AutoGen;
 
 namespace splitter;
 
@@ -39,12 +40,20 @@ public class SimpleSplitter(int segmentNo) : LoggingBase(segmentNo), ISegmentPro
 
         using var proc = Process.Start(psi) ?? throw new Exception("Failed to start ffmpeg.");
 
-        ShowFFMpegProgress(length, proc);
+        var name = Path.GetFileNameWithoutExtension(outputFile);
+        ShowFFMpegProgress(length, proc, name);
 
         proc.WaitForExit();
+        
+        ClearProgress(segmentNo);
+
+        if (proc.ExitCode != 0)
+            LogError($"Segment {name} FFmpeg encoding failed");
+        else
+            LogInfo($"Segment {name} processing completed");
     }
 
-    private void ShowFFMpegProgress(double length, Process proc)
+    private void ShowFFMpegProgress(double length, Process proc, string name)
     {
         var sw = Stopwatch.StartNew();
 
@@ -76,7 +85,7 @@ public class SimpleSplitter(int segmentNo) : LoggingBase(segmentNo), ISegmentPro
             var etaSeconds = speed > 0 ? remaining / speed : remaining;
             var eta = TimeSpan.FromSeconds(etaSeconds);
 
-            DrawProgress(progress, eta, speed);
+            DrawProgress(name, progress, eta, speed);
         }
     }
 

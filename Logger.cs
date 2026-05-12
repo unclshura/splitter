@@ -17,9 +17,16 @@ public static class Logger
             }
             else
             {
+                Console.SetCursorPosition(0, _logLines);
+
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.Write($"{prefix} ");
+                
                 Console.ForegroundColor = color;
-                Console.WriteLine($"{prefix} {msg}");
+                Console.WriteLine(msg);
+
                 Console.ResetColor();
+                
                 _logLines++;
             }
         }
@@ -30,39 +37,88 @@ public static class Logger
     public static void LogWarn(string msg) => Log("[WARN]", ConsoleColor.Yellow, msg);
     public static void LogError(string msg) => Log("[ERR ]", ConsoleColor.Red, msg);
 
-    public static void DrawProgress(int progressLevel, double progress, TimeSpan eta, double speed)
+    private static readonly Dictionary<int, int> _progressTrack = new();
+
+    public static void DrawProgress(string name, int progressLevel, double progress, TimeSpan eta, double speed)
+    {
+        if (PlainText || progressLevel < 0)
+            return;
+
+        // Crop name to max 20 chars
+        name = name.Length > 20 ? name[..20] : name;
+
+        lock (_consoleLock)
+        {
+            var width = Math.Max(20, Console.WindowWidth - 20);
+
+            // Reserve space for name + space
+            var namePrefix = name + " ";
+            var barWidth = Math.Max(10, width - namePrefix.Length);
+
+            var filled = (int)(progress * barWidth);
+            if (filled < 0) filled = 0;
+            if (filled > barWidth) filled = barWidth;
+
+            // --- NEW: skip drawing if visually unchanged ---
+            if (_progressTrack.TryGetValue(progressLevel, out var lastFilled) &&
+                lastFilled == filled)
+            {
+                return; // no visual change → skip
+            }
+
+            _progressTrack[progressLevel] = filled;
+            // ------------------------------------------------
+
+            var barLine  = _logLines + 1 + progressLevel * 2;
+            var infoLine = _logLines + 2 + progressLevel * 2;
+
+            // Draw progress bar
+            Console.SetCursorPosition(0, barLine);
+            Console.Write("\u001b[38;2;0;255;0m"); // green
+            Console.Write(namePrefix);
+            Console.Write("[");
+            Console.Write(new string('#', filled));
+            Console.Write(new string('-', barWidth - filled));
+            Console.Write("]\u001b[0m");
+
+            // Info line
+            Console.SetCursorPosition(0, infoLine);
+
+            var etaStr = eta.TotalSeconds < 0 || double.IsInfinity(eta.TotalSeconds)
+            ? "ETA: --:--"
+            : $"ETA: {eta:mm\\:ss}";
+
+            var speedStr = double.IsNaN(speed) || double.IsInfinity(speed)
+            ? "Speed: -.-x"
+            : $"Speed: {speed:F2}x";
+
+            var info = $"{progress * 100:0.0}%  {etaStr}  {speedStr}   ";
+
+            Console.Write("\u001b[38;2;180;180;180m" +
+                          info.PadRight(Console.WindowWidth - 1) +
+                          "\u001b[0m");
+        }
+    }
+
+
+    public static void ClearProgress(int progressLevel)
     {
         if (PlainText || progressLevel < 0)
             return;
 
         lock (_consoleLock)
         {
-            var width = Math.Max(20, Console.WindowWidth - 20);
-            var filled = (int)(progress * width);
-            if (filled < 0) filled = 0;
-            if (filled > width) filled = width;
+            var barLine  = _logLines + 1 + progressLevel * 2;
+            var infoLine = _logLines + 2 + progressLevel * 2;
 
-            var barLine  = _logLines + 1 + progressLevel*2;
-            var infoLine = _logLines + 2 + progressLevel*2;
-
-            // Progress bar with 24-bit color (green)
+            // Clear bar line
             Console.SetCursorPosition(0, barLine);
-            Console.Write("\u001b[38;2;0;255;0m[");
-            Console.Write(new string('#', filled));
-            Console.Write(new string('-', width - filled));
-            Console.Write("]\u001b[0m");
+            Console.Write(new string(' ', Console.WindowWidth - 1));
 
-            // Info line: percentage, ETA, speed
+            // Clear info line
             Console.SetCursorPosition(0, infoLine);
-            var etaStr = eta.TotalSeconds < 0 || double.IsInfinity(eta.TotalSeconds)
-                ? "ETA: --:--"
-                : $"ETA: {eta:mm\\:ss}";
-            var speedStr = double.IsNaN(speed) || double.IsInfinity(speed)
-                ? "Speed: -.-x"
-                : $"Speed: {speed:F2}x";
-
-            var info = $"{progress * 100:0.0}%  {etaStr}  {speedStr}   ";
-            Console.Write("\u001b[38;2;180;180;180m" + info.PadRight(Console.WindowWidth - 1) + "\u001b[0m");
+            Console.Write(new string(' ', Console.WindowWidth - 1));
         }
     }
+
 }

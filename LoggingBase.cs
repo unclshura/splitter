@@ -15,6 +15,9 @@ public abstract class LoggingBase(int progressLine)
     protected void LogError(string message)
         => Logger.LogError(message);
 
-    protected void DrawProgress(double percent, TimeSpan eta, double fps)
-        => Logger.DrawProgress(progressLine, percent, eta, fps);
+    protected void DrawProgress(string name, double percent, TimeSpan eta, double fps)
+        => Logger.DrawProgress(name, progressLine, percent, eta, fps);
+
+    protected void ClearProgress(int progressLevel)
+        => Logger.ClearProgress(progressLevel);
 }
