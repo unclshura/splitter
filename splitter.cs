@@ -5,49 +5,38 @@ using splitter;
 
 static class Program
 {
+    private static ILogger _logger = null!;
     static async Task Main(string[] args)
     {
         var cmd = new CommandLine(args);
-
-        var estimateOnly               = cmd.EstimateOnly;
-        var forceFixed                 = cmd.ForceFixed;
-        var passthrough                = cmd.Passthrough;
-        var inputFile                  = cmd.InputFile;
-        var outputFolder               = cmd.OutputFolder;
-        (int width, int height)? crop  = cmd.Crop;
-        string? mask                   = cmd.Mask;
-        var debug                      = cmd.Debug;
-        string? detect                 = cmd.Detect;
-        double? overrideTargetDuration = cmd.OverrideTargetDuration;
-        Logger.PlainText               = cmd.PlainText;
-
-        if (!File.Exists(inputFile))
+        _logger = new Logger(cmd);
+        
+        if (!File.Exists(cmd.InputFile))
         {
             LogError("Input file not found.");
             return;
         }
 
-        if (!Directory.Exists(outputFolder))
-            Directory.CreateDirectory(outputFolder);
+        if (!Directory.Exists(cmd.OutputFolder))
+            Directory.CreateDirectory(cmd.OutputFolder);
 
-        var baseName = Path.GetFileNameWithoutExtension(inputFile);
-        var outputMask = mask ?? $"{baseName}_Seg%03d.mp4";
-
+        var baseName = Path.GetFileNameWithoutExtension(cmd.InputFile);
+        var outputMask = cmd.Mask ?? $"{baseName}_Seg%03d.mp4";
         LogInfo("Reading duration via ffprobe...");
 
-        var duration = GetDuration(inputFile);
+        var duration = GetDuration(cmd.InputFile);
         if (duration <= 0)
         {
             LogError("Could not read duration.");
             return;
         }
 
-        var target = overrideTargetDuration ?? 58.0;
+        var target = cmd.OverrideTargetDuration ?? 58.0;
 
         int segments;
         double segmentLength;
 
-        if (forceFixed)
+        if (cmd.ForceFixed)
         {
             // Fixed chunk size, last one may be shorter
             segments = (int)Math.Ceiling(duration / target);
@@ -60,13 +49,13 @@ static class Program
             segmentLength = duration / segments;
         }
 
-        if (estimateOnly)
+        if (cmd.EstimateOnly)
         {
             LogInfo("=== ESTIMATE MODE ===");
             LogInfo($"Total duration: {duration:F2}s");
             LogInfo($"Target duration: {target:F2}s");
             LogInfo($"Segments: {segments}");
-            LogInfo(forceFixed
+            LogInfo(cmd.ForceFixed
                 ? $"Fixed segment length: {segmentLength:F2}s (last may be shorter)"
                 : $"Equalized segment length: {segmentLength:F2}s");
             return;
@@ -77,45 +66,45 @@ static class Program
         LogInfo($"Equal segment length: {segmentLength:F3}s");
 
         Func<int, ISegmentProcessor> processorFactory;
-        if (crop != null)
+        if (cmd.Crop != null)
         {
             processorFactory = i =>
             {
-                IObjectDetector detector = detect switch
+                IObjectDetector detector = cmd.Detect switch
                 {
-                    "face" => new UltraFaceDetector(),
-                    "body" => new YoloOnnxObjectDetector(),
-                    _      => throw new InvalidOperationException($"Unknown detector: {detect}")
+                    "face" => new UltraFaceDetector(_logger),
+                    "body" => new YoloOnnxObjectDetector(_logger),
+                    _      => throw new InvalidOperationException($"Unknown detector: {cmd.Detect}")
                 };
-                return new TrackingSplitter(i, crop.Value.width, crop.Value.height, debug, cmd.PlainText, detector, cmd);
+                return new TrackingSplitter(i, cmd.Crop.Value.width, cmd.Crop.Value.height, cmd.Debug, cmd.PlainText, detector, cmd, _logger);
             };
         }
         else
         {
-            processorFactory = i => new SimpleSplitter(i);
+            processorFactory = i => new SimpleSplitter(i, _logger);
         }
         if (cmd.SingleThreaded)
         {
             LogInfo("Starting single-threaded splitting...");
-            await RunSingleThreaded(processorFactory, inputFile, outputFolder, outputMask, duration, segments, segmentLength, passthrough);
+            await RunSingleThreaded(processorFactory, cmd.InputFile, cmd.OutputFolder, outputMask, duration, segments, segmentLength, cmd.Passthrough);
         }
         else
         {
             LogInfo("Starting multi-threaded splitting...");
-            await RunMultiThreaded(processorFactory, inputFile, outputFolder, outputMask, duration, segments, segmentLength, passthrough);
+            await RunMultiThreaded(processorFactory, cmd.InputFile, cmd.OutputFolder, outputMask, duration, segments, segmentLength, cmd.Passthrough);
         }
 
         LogInfo("Done.");
     }
 
     private static void LogInfo(string message)
-        => Logger.LogInfo(message);
+        => _logger.LogInfo(message);
 
     private static void LogWarn(string message)
-        => Logger.LogWarn(message);
+        => _logger.LogWarn(message);
 
     private static void LogError(string message)
-        => Logger.LogError(message);
+        => _logger.LogError(message);
 
     // -----------------------------
     // ffprobe

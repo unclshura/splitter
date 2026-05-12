@@ -7,7 +7,7 @@ using FFmpeg.AutoGen;
 
 namespace splitter;
 
-public class SimpleSplitter(int segmentNo) : LoggingBase(segmentNo), ISegmentProcessor
+public class SimpleSplitter(int segmentNo, ILogger logger) : LoggingBase(logger, segmentNo), ISegmentProcessor
 {
     public async Task ProcessSegment(string inputFile, string outputFile, double start, double length, string[] passthrough)
     {

@@ -18,8 +18,8 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
     private readonly IObjectDetector _detector;
     private readonly CommandLine     _cmd;
 
-    public TrackingSplitter(int segmentNo, int cropWidth, int cropHeight, bool debugOverlay, bool plainText, IObjectDetector detector, CommandLine cmd) 
-        : base(segmentNo)
+    public TrackingSplitter(int segmentNo, int cropWidth, int cropHeight, bool debugOverlay, bool plainText, IObjectDetector detector, CommandLine cmd, ILogger logger) 
+        : base(logger, segmentNo)
     {
         _segmentNo    = segmentNo;
         _cropWidth    = cropWidth;

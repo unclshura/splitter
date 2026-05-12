@@ -59,7 +59,7 @@ public sealed class YoloOnnxObjectDetector : LoggingBase, IObjectDetector, IDisp
         }
     }
 
-    public YoloOnnxObjectDetector() : base(-1)
+    public YoloOnnxObjectDetector(ILogger logger) : base(logger, -1)
     {
         var options = new SessionOptions();
         options.AppendExecutionProvider_DML();

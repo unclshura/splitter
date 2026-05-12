@@ -1,17 +1,15 @@
 ﻿namespace splitter;
 
-public static class Logger
+public class Logger(CommandLine cmd) : ILogger
 {
-    static int             _logLines        = 0;
-    static readonly object _consoleLock     = new();
+    int             _logLines        = Math.Max(1, Environment.ProcessorCount / 2) * 2;
+    readonly object _consoleLock     = new();
 
-    public static bool PlainText { get; set; }
-
-    public static void Log(string prefix, ConsoleColor color, string msg)
+    public void Log(string prefix, ConsoleColor color, string msg)
     {
         lock (_consoleLock)
         {
-            if (PlainText)
+            if (cmd.PlainText)
             {
                 Console.WriteLine($"{prefix} {msg}");
             }
@@ -21,27 +19,22 @@ public static class Logger
 
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.Write($"{prefix} ");
-                
+
                 Console.ForegroundColor = color;
                 Console.WriteLine(msg);
 
                 Console.ResetColor();
-                
+
                 _logLines++;
             }
         }
     }
 
-    public static void LogInfo(string msg) => Log("[INFO]", ConsoleColor.Cyan, msg);
-    public static void LogSuccess(string msg) => Log("[ OK ]", ConsoleColor.Green, msg);
-    public static void LogWarn(string msg) => Log("[WARN]", ConsoleColor.Yellow, msg);
-    public static void LogError(string msg) => Log("[ERR ]", ConsoleColor.Red, msg);
+    private readonly Dictionary<int, int> _progressTrack = new();
 
-    private static readonly Dictionary<int, int> _progressTrack = new();
-
-    public static void DrawProgress(string name, int progressLevel, double progress, TimeSpan eta, double speed)
+    public void DrawProgress(string name, int progressLine, double progress, TimeSpan eta, double speed)
     {
-        if (PlainText || progressLevel < 0)
+        if (cmd.PlainText || progressLine < 0)
             return;
 
         // Crop name to max 20 chars
@@ -60,17 +53,17 @@ public static class Logger
             if (filled > barWidth) filled = barWidth;
 
             // --- NEW: skip drawing if visually unchanged ---
-            if (_progressTrack.TryGetValue(progressLevel, out var lastFilled) &&
+            if (_progressTrack.TryGetValue(progressLine, out var lastFilled) &&
                 lastFilled == filled)
             {
                 return; // no visual change → skip
             }
 
-            _progressTrack[progressLevel] = filled;
+            _progressTrack[progressLine] = filled;
             // ------------------------------------------------
 
-            var barLine  = _logLines + 1 + progressLevel * 2;
-            var infoLine = _logLines + 2 + progressLevel * 2;
+            var barLine  = _logLines + 1 + progressLine * 2;
+            var infoLine = _logLines + 2 + progressLine * 2;
 
             // Draw progress bar
             Console.SetCursorPosition(0, barLine);
@@ -101,9 +94,9 @@ public static class Logger
     }
 
 
-    public static void ClearProgress(int progressLevel)
+    public void ClearProgress(int progressLevel)
     {
-        if (PlainText || progressLevel < 0)
+        if (cmd.PlainText || progressLevel < 0)
             return;
 
         lock (_consoleLock)

@@ -9,7 +9,7 @@ public sealed class UltraFaceDetector: LoggingBase, IDisposable, IObjectDetector
 {
     private readonly UltraFace _ultraFace;
 
-    public UltraFaceDetector() : base(-1)
+    public UltraFaceDetector(ILogger logger) : base(logger, -1)
     {
         var basePath = AppDomain.CurrentDomain.BaseDirectory;
         var param = new UltraFaceParameter

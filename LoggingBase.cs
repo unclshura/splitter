@@ -1,23 +1,23 @@
 ﻿using System;
 namespace splitter;
 
-public abstract class LoggingBase(int progressLine)
+public abstract class LoggingBase(ILogger _logger, int _progressLine)
 {
     protected void Log(string level, ConsoleColor color, string message)
-        => Logger.Log(level, color, message);
+        => _logger.Log(level, color, message);
 
     protected void LogInfo(string message)
-        => Logger.LogInfo(message);
+        => _logger.LogInfo(message);
 
     protected void LogWarn(string message)
-        => Logger.LogWarn(message);
+        => _logger.LogWarn(message);
 
     protected void LogError(string message)
-        => Logger.LogError(message);
+        => _logger.LogError(message);
 
     protected void DrawProgress(string name, double percent, TimeSpan eta, double fps)
-        => Logger.DrawProgress(name, progressLine, percent, eta, fps);
+        => _logger.DrawProgress(name, _progressLine, percent, eta, fps);
 
     protected void ClearProgress()
-        => Logger.ClearProgress(progressLine);
+        => _logger.ClearProgress(_progressLine);
 }
