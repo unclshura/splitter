@@ -25,8 +25,10 @@ public sealed class SpectreConsoleLogger : ILogger, IDisposable
     private readonly Dictionary<int, ProgressEntry> _progress = new();
 
     private readonly CancellationTokenSource _cts = new();
-    private Task? _uiTask;
-    private Task? _inputTask;
+    private Task?                            _uiTask;
+    private Task?                            _inputTask;
+    private int                              _numberOfProcesses = 1;
+    private const int                        _maxLogEntries = 500;
 
     // Public configuration
     public string Title { get; set; } = string.Empty;
@@ -51,14 +53,6 @@ public sealed class SpectreConsoleLogger : ILogger, IDisposable
         }
     }
 
-    private int _numberOfProcesses = 1;
-
-    private const int MaxLogEntries = 500;
-
-    public SpectreConsoleLogger()
-    {
-        NumberOfProcesses = 1;
-    }
 
     // ---- ILogger ----
 
@@ -93,8 +87,8 @@ public sealed class SpectreConsoleLogger : ILogger, IDisposable
     {
         lock (_sync)
         {
-            if (_logs.Count >= MaxLogEntries)
-                _logs.RemoveRange(0, _logs.Count - MaxLogEntries + 1);
+            if (_logs.Count >= _maxLogEntries)
+                _logs.RemoveRange(0, _logs.Count - _maxLogEntries + 1);
 
             _logs.Add(new LogEntry(
                 DateTime.Now,
@@ -137,7 +131,7 @@ public sealed class SpectreConsoleLogger : ILogger, IDisposable
                         ctx.UpdateTarget(BuildRoot());
                         await Task.Delay(100, token);
                     }
-                    catch ( Exception ex )
+                    catch ( Exception )
                     {
                         break;
                     }

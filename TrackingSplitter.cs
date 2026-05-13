@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using OpenCvSharp;
@@ -9,21 +10,16 @@ namespace splitter;
 
 public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
 {
-    private readonly int  _cropWidth;
-    private readonly int  _cropHeight;
-    private readonly bool _debugOverlay;
-    private readonly bool _plainText;
-
     private readonly IObjectDetector _detector;
-    private readonly SingleJob     _cmd;
+    private readonly SingleJob       _cmd;
 
-    public TrackingSplitter(int segmentNo, int cropWidth, int cropHeight, bool debugOverlay, bool plainText, IObjectDetector detector, SingleJob cmd, ILogger logger) 
-        : base(logger, segmentNo)
+    public TrackingSplitter(
+        int  progressLine,
+        IObjectDetector detector,
+        SingleJob cmd,
+        ILogger logger)
+        : base(logger, progressLine)
     {
-        _cropWidth    = cropWidth;
-        _cropHeight   = cropHeight;
-        _debugOverlay = debugOverlay;
-        _plainText    = plainText;
         _detector     = detector;
         _cmd          = cmd;
     }
@@ -34,146 +30,287 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
             d.Dispose();
     }
 
-    public async Task ProcessSegment(string inputFile, string outputFile, double start, double length, string[] ffmpegPassthroughParameters)
-    { 
-        using var capture = new VideoCapture(inputFile);
-        if (!capture.IsOpened())
+    public async Task ProcessSegment(
+        string inputFile,
+        string outputFile,
+        double start,
+        double length,
+        int videoWidth, int videoHeight, double fps,
+        string[] ffmpegPassthroughParameters)
+    {
+        var name = Path.GetFileNameWithoutExtension(outputFile);
+
+        // 1) Probe source video
+        if (videoWidth <= 0 || videoHeight <= 0 || fps <= 0)
         {
-            LogError($"{Path.GetFileName(inputFile)}: Cannot open video");
+            LogError($"{name}: ffprobe failed to get metadata");
             return;
         }
 
-        var name     = Path.GetFileNameWithoutExtension(outputFile);
-        var skip     = TimeSpan.FromSeconds(start);
-        var duration = TimeSpan.FromSeconds(length);
+        if (_cmd.Crop == null)
+        {
+            LogError($"{name}: Crop parameters are required");
+            return;
+        }
 
-        capture.Set(VideoCaptureProperties.PosMsec, start);
+        var encWidth  = _cmd.Debug ? videoWidth  : _cmd.Crop.Value.width;
+        var encHeight = _cmd.Debug ? videoHeight : _cmd.Crop.Value.height;
 
-        var videoWidth  = (int)capture.Get(VideoCaptureProperties.FrameWidth);
-        var videoHeight = (int)capture.Get(VideoCaptureProperties.FrameHeight);
-        var fps         = capture.Get(VideoCaptureProperties.Fps);
-        var totalFrames = (int)(length * fps);
+        LogInfo($"{name}: src={videoWidth}x{videoHeight} @ {fps:F3}fps, seg=[{start:F3},{length:F3}] enc={encWidth}x{encHeight}");
 
-        var originalCropWidth  = _cropWidth;
-        var originalCropHeight = _cropHeight;
+        // 2) Start FFmpeg decode (video only → raw BGR24 to stdout)
+        var decode = StartFfmpegDecode(inputFile, start, length);
+        using var decodeStdout = decode.StandardOutput.BaseStream;
 
-        LogInfo($"{Path.GetFileName(outputFile)}:: [TrackingSplitter] skip={skip}, duration={duration}, fps={fps}, totalFrames={totalFrames}");
-
-        var encWidth  = _debugOverlay ? videoWidth  : originalCropWidth;
-        var encHeight = _debugOverlay ? videoHeight : originalCropHeight;
-
-        var ffmpeg = StartFfmpegNvenc(
+        // 3) Start FFmpeg encode (video from stdin + audio from original)
+        var encode = StartFfmpegEncode(
             inputFile,
             outputFile,
+            start,
+            length,
             encWidth,
             encHeight,
             fps,
-            skip,
             ffmpegPassthroughParameters);
 
-        using var stdin = ffmpeg.StandardInput.BaseStream;
+        using var encodeStdin = encode.StandardInput.BaseStream;
 
-        using var frame     = new Mat();
-        using var outputBgr = new Mat(encHeight, encWidth, MatType.CV_8UC3);
+        // Separate input/output sizes and buffers
+        var inBytes  = videoWidth * videoHeight * 3;
+        var outBytes = encWidth   * encHeight   * 3;
 
-        var frameBytes  = encWidth * encHeight * 3;
-        var videoBuffer = new byte[frameBytes];
+        var inBuffer  = new byte[inBytes];
+        var outBuffer = new byte[outBytes];
+
+        using var frameMat = new Mat(videoHeight, videoWidth, MatType.CV_8UC3);
+        using var outMat   = new Mat(encHeight, encWidth, MatType.CV_8UC3);
 
         var kalman = new KalmanTracker();
-        // initial reset is now done inside CameraController
-
         var camera = new CameraController(
             videoWidth,
             videoHeight,
-            originalCropWidth,
-            originalCropHeight,
+            _cmd.Crop.Value.width,
+            _cmd.Crop.Value.height,
             kalman,
-            _cmd
-            );
+            _cmd);
 
-        var startTime = DateTime.UtcNow;
+        var startTime   = DateTime.UtcNow;
+        var totalFrames = (int)Math.Round(length * fps);
+        var frameIndex  = 0;
 
-        for (var i = 0; i < totalFrames; i++)
+        while (frameIndex < totalFrames)
         {
-            if (!capture.Read(frame) || frame.Empty())
+            frameIndex++;
+
+            var read = ReadExact(decodeStdout, inBuffer, 0, inBytes);
+            if (read != inBytes)
                 break;
 
-            Rect?    objectBox    = null;
-            Point2f? objectCenter = null;
+            // input frame → Mat
+            Marshal.Copy(inBuffer, 0, frameMat.Data, inBytes);
 
-            var objects = _detector.DetectAll(frame, videoWidth, videoHeight);
+            var objects = _detector.DetectAll(frameMat, videoWidth, videoHeight);
             var primary = SelectTrackedObject(objects, kalman.LastMeasurement);
 
             camera.Update(primary);
+            var roi = camera.Roi;
 
-            objectBox = camera.ObjectBox;
-            objectCenter = camera.ObjectCenter;
-
-            var smoothedCenter = camera.SmoothedCenter;
-            var cameraCenter   = camera.CameraCenter;
-            var state          = camera.State;
-            var lostFrames     = camera.LostFrames;
-            var roi            = camera.Roi;
-
-            if (_debugOverlay)
+            if (_cmd.Debug)
             {
-                if (objectBox.HasValue)
-                {
-                    var fb = objectBox.Value;
-                    Cv2.Rectangle(frame,
-                        new Rect(fb.X, fb.Y, fb.Width, fb.Height),
-                        Scalar.LimeGreen, 2);
-                }
-
-                Cv2.Circle(frame,
-                    new Point((int)smoothedCenter.X, (int)smoothedCenter.Y),
-                    6, Scalar.LimeGreen, -1);
-
-                Cv2.Rectangle(frame, roi,
-                    objectCenter.HasValue ? Scalar.Yellow : Scalar.Red, 3);
-
-                DrawText(frame, $"Faces: {objects.Count}", 20, 40, Scalar.White);
-                DrawText(frame, $"LostFrames: {lostFrames}", 20, 70, Scalar.White);
-                DrawText(frame, $"Noise: {kalman.CurrentNoise:F3}", 20, 130, Scalar.White);
-                DrawText(frame, $"Camera: {cameraCenter.X:F1},{cameraCenter.Y:F1}", 20, 160, Scalar.White);
-            }
-
-            if (_debugOverlay)
-            {
-                frame.CopyTo(outputBgr);
-                Marshal.Copy(outputBgr.Data, videoBuffer, 0, frameBytes);
-                stdin.Write(videoBuffer, 0, frameBytes);
+                DrawDebug(frameMat, objects, camera, kalman);
+                frameMat.CopyTo(outMat);
             }
             else
             {
-                using var cropped = new Mat(frame, roi);
-                cropped.CopyTo(outputBgr);
-
-                Marshal.Copy(outputBgr.Data, videoBuffer, 0, frameBytes);
-                stdin.Write(videoBuffer, 0, frameBytes);
+                using var cropped = new Mat(frameMat, roi);
+                cropped.CopyTo(outMat);
             }
 
+            // output Mat → outBuffer
+            Marshal.Copy(outMat.Data, outBuffer, 0, outBytes);
+            encodeStdin.Write(outBuffer, 0, outBytes);
+
             var elapsed         = DateTime.UtcNow - startTime;
-            var progress        = (double)i / totalFrames;
-            var speed           = i > 0 ? (i / elapsed.TotalSeconds)/fps : 0.0;
-            var remainingFrames = totalFrames - i;
-            var etaSeconds      = speed > 0 ? remainingFrames / speed : 0;
+            var progress        = totalFrames > 0 ? (double)frameIndex / totalFrames : 0.0;
+            var speed           = elapsed.TotalSeconds > 0 ? (frameIndex / elapsed.TotalSeconds) / fps : 0.0;
+            var remainingFrames = Math.Max(totalFrames - frameIndex, 0);
+            var etaSeconds      = speed > 0 ? remainingFrames / speed : 0.0;
             var eta             = TimeSpan.FromSeconds(etaSeconds);
 
             DrawProgress(name, progress, eta, speed);
         }
 
-        stdin.Flush();
-        stdin.Close();
+        encodeStdin.Flush();
 
-        await ffmpeg.WaitForExitAsync();
+        // loop finished
+
+        encodeStdin.Flush();
+        encodeStdin.Close();          // must happen before waiting encode
+
+        await encode.WaitForExitAsync();
+
+        // belt-and-braces: if decode is still alive, kill it
+        try { if (!decode.HasExited) decode.Kill(entireProcessTree: true); } catch { }
+        try { if (!decode.HasExited) await decode.WaitForExitAsync(); } catch { }
 
         ClearProgress();
 
-        if (ffmpeg.ExitCode != 0)
-            LogError($"{Path.GetFileName(outputFile)}: Segment {name} FFmpeg encoding failed");
+
+        if (encode.ExitCode != 0)
+            LogError($"{name}: FFmpeg encoding failed");
         else
-            LogInfo($"{Path.GetFileName(outputFile)}: Segment {name} processing completed");
+            LogInfo($"{name}: Segment processing completed");
+    }
+
+
+    // ---------- FFmpeg decode / encode ----------
+
+    private Process StartFfmpegDecode(string inputFile, double start, double length)
+    {
+        var ss = start.ToString("0.###", CultureInfo.InvariantCulture);
+        var t  = length.ToString("0.###", CultureInfo.InvariantCulture);
+
+        var args =
+    $"-i \"{inputFile}\" -ss {ss} -t {t} " +
+    "-an -sn " +
+    "-vf format=bgr24 " +
+    "-f rawvideo -";
+
+        var psi = new ProcessStartInfo
+        {
+            FileName               = "ffmpeg",
+            Arguments              = args,
+            RedirectStandardOutput = true,
+            RedirectStandardError  = true,
+            UseShellExecute        = false,
+            CreateNoWindow         = true
+        };
+
+        var p = new Process { StartInfo = psi };
+        p.Start();
+
+        var fileName = Path.GetFileName(inputFile);
+
+        if (_cmd.PlainText)
+        {
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    string? line;
+                    while ((line = p.StandardError.ReadLine()) != null)
+                        if (_cmd.PlainText)
+                            LogInfo($"[ffmpeg-decode] {fileName}: {line}");
+                }
+                catch { }
+            });
+        }
+
+        return p;
+    }
+
+    private Process StartFfmpegEncode(
+        string inputFile,
+        string outputFile,
+        double start,
+        double length,
+        int width,
+        int height,
+        double fps,
+        string[] passthrough)
+    {
+        var pass   = passthrough.Length > 0 ? string.Join(" ", passthrough) : "";
+        var fpsStr = fps.ToString("0.###", CultureInfo.InvariantCulture);
+        var ss     = start.ToString("0.###", CultureInfo.InvariantCulture);
+        var t      = length.ToString("0.###", CultureInfo.InvariantCulture);
+
+        var args =
+            "-y " +
+            $"-f rawvideo -pix_fmt bgr24 -s {width}x{height} -r {fpsStr} -i - " +
+            $"-ss {ss} -i \"{inputFile}\" " +
+            "-map 0:v:0 -map 1:a:0? -shortest " +
+            "-c:v h264_nvenc -preset p4 -b:v 8M -pix_fmt yuv420p " +
+            "-c:a aac -b:a 192k " +
+            pass + $" \"{outputFile}\"";
+
+
+
+        var psi = new ProcessStartInfo
+        {
+            FileName              = "ffmpeg",
+            Arguments             = args,
+            RedirectStandardInput = true,
+            RedirectStandardError = true,
+            UseShellExecute       = false,
+            CreateNoWindow        = true
+        };
+
+        var p = new Process { StartInfo = psi };
+        p.Start();
+
+        var fileName = Path.GetFileName(outputFile);
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                string? line;
+                while ((line = p.StandardError.ReadLine()) != null)
+                {
+                    if (_cmd.PlainText)
+                        LogInfo($"[ffmpeg-encode] {fileName}: {line}");
+                }
+            }
+            catch { }
+        });
+
+        return p;
+    }
+
+    // ---------- helpers ----------
+
+    private static int ReadExact(Stream s, byte[] buffer, int offset, int count)
+    {
+        var total = 0;
+        while (total < count)
+        {
+            var read = s.Read(buffer, offset + total, count - total);
+            if (read <= 0)
+                break;
+            total += read;
+        }
+        return total;
+    }
+
+    private void DrawDebug(
+        Mat frame,
+        System.Collections.Generic.List<(Rect box, Point2f center)> objects,
+        CameraController camera,
+        KalmanTracker kalman)
+    {
+        if (camera.ObjectBox.HasValue)
+        {
+            var fb = camera.ObjectBox.Value;
+            Cv2.Rectangle(frame, fb, Scalar.LimeGreen, 2);
+        }
+
+        Cv2.Circle(frame,
+            new Point((int)camera.SmoothedCenter.X, (int)camera.SmoothedCenter.Y),
+            6, Scalar.LimeGreen, -1);
+
+        Cv2.Rectangle(frame, camera.Roi,
+            camera.ObjectCenter.HasValue ? Scalar.Yellow : Scalar.Red, 3);
+
+        DrawText(frame, $"Faces: {objects.Count}", 20, 40, Scalar.White);
+        DrawText(frame, $"LostFrames: {camera.LostFrames}", 20, 70, Scalar.White);
+        DrawText(frame, $"Noise: {kalman.CurrentNoise:F3}", 20, 130, Scalar.White);
+        DrawText(frame, $"Camera: {camera.CameraCenter.X:F1},{camera.CameraCenter.Y:F1}", 20, 160, Scalar.White);
+    }
+
+    private static void DrawText(Mat img, string text, int x, int y, Scalar color)
+    {
+        Cv2.PutText(img, text, new Point(x, y),
+            HersheyFonts.HersheySimplex, 0.6, color, 2);
     }
 
     private (Rect box, Point2f center)? SelectTrackedObject(
@@ -185,7 +322,6 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
 
         if (!previousCenter.HasValue)
         {
-            // Largest area
             var bestIndex = 0;
             var bestArea  = float.MinValue;
 
@@ -204,8 +340,7 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
         }
         else
         {
-            // Closest to previous center
-            var prev = previousCenter.Value;
+            var prev      = previousCenter.Value;
             var bestIndex = 0;
             var bestDist2 = float.MaxValue;
 
@@ -226,64 +361,4 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
             return foundObjects[bestIndex];
         }
     }
-
-    private Process StartFfmpegNvenc(
-        string srcFileName,
-        string destFileName,
-        int width,
-        int height,
-        double fps,
-        TimeSpan skip,
-        string[] passthrough)
-    {
-        var pass        = passthrough.Length > 0 ? string.Join(" ", passthrough) : "";
-        var skipSeconds = skip.TotalSeconds.ToString("0.###", CultureInfo.InvariantCulture);
-        var fpsStr      = fps.ToString("0.###", CultureInfo.InvariantCulture);
-
-        var args =
-            "-y " +
-            $"-f rawvideo -pix_fmt bgr24 -s {width}x{height} -r {fpsStr} -i - " +
-            $"-ss {skipSeconds} -i \"{srcFileName}\" " +
-            "-map 0:v:0 -map 1:a:0? -shortest " +
-            "-c:v h264_nvenc -preset p4 -b:v 8M -pix_fmt yuv420p " +
-            "-c:a aac -b:a 192k " +
-            pass + $" \"{destFileName}\"";
-
-        var psi = new ProcessStartInfo
-        {
-            FileName               = "ffmpeg",
-            Arguments              = args,
-            RedirectStandardInput  = true,
-            RedirectStandardError  = true,
-            RedirectStandardOutput = true,
-            UseShellExecute        = false,
-            CreateNoWindow         = true
-        };
-
-        var process = new Process { StartInfo = psi };
-        process.Start();
-
-        _ = Task.Run(() =>
-        {
-            try
-            {
-                string? line;
-                while ((line = process.StandardError.ReadLine()) != null)
-                {
-                    if (_plainText)
-                        Console.WriteLine($"[ffmpeg] {line}");
-                }
-            }
-            catch { }
-        });
-
-        return process;
-    }
-
-    private static void DrawText(Mat img, string text, int x, int y, Scalar color)
-    {
-        Cv2.PutText(img, text, new Point(x, y),
-            HersheyFonts.HersheySimplex, 0.6, color, 2);
-    }
-
 }
