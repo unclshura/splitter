@@ -6,11 +6,11 @@
     },
     "Prod": {
       "commandName": "Project",
-      "commandLineArgs": "\"C:\\Users\\uncls\\Pictures\\2026\\2026 - Secret Rule\\20260426_212004.mp4\" \"C:\\Users\\uncls\\Pictures\\2026\\2026 - Secret Rule\\Shorts\" --crop --detect=body"
+      "commandLineArgs": "\"C:\\Users\\uncls\\Pictures\\2026\\2026 - Secret Rule\\20260426_212*.mp4\"  --crop --detect=body"
     },
     "Debug": {
       "commandName": "Project",
-      "commandLineArgs": "\"C:\\Users\\uncls\\Pictures\\2026\\2026 - Secret Rule\\20260426_212004.mp4\" \"C:\\Users\\uncls\\Pictures\\2026\\2026 - Secret Rule\\Shorts\" --crop --detect=body --debug --single-thread --text"
+      "commandLineArgs": "\"C:\\Users\\uncls\\Pictures\\2026\\2026 - Secret Rule\\20260426_212004.mp4\" --crop --detect=body --debug --single-thread --text"
     }
   }
 }

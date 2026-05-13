@@ -17,7 +17,7 @@ public sealed class CameraController
     private readonly int _cropWidth;
     private readonly int _cropHeight;
     private readonly KalmanTracker _kalman;
-    private readonly CommandLine _cmd;
+    private readonly SingleJob _cmd;
     private int _dropoutCounter;
 
     // --- Dropout tolerance ---
@@ -41,7 +41,7 @@ public sealed class CameraController
         int cropWidth,
         int cropHeight,
         KalmanTracker kalman,
-        CommandLine cmd
+        SingleJob cmd
         )
     {
         _videoWidth   = videoWidth;

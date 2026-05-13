@@ -5,123 +5,22 @@ using System.Text;
 
 namespace splitter;
 
-public sealed class CommandLine
+public class SingleJob
 {
-    public string InputFile               { get; private init; }
-    public string OutputFolder            { get; private init; }
-    public (int width, int height)? Crop  { get; private init; }
-    public Point2f? GravitateTo           { get; private init; }
-    public string? Mask                   { get; private init; }
-    public bool Debug                     { get; private init; }
-    public string? Detect                 { get; private init; }
-    public double? OverrideTargetDuration { get; private init; }
-    public string[] Passthrough           { get; private init; } = Array.Empty<string>();
-    public bool PlainText                 { get; private init; }
-    public bool EstimateOnly              { get; private init; }
-    public bool ForceFixed                { get; private init; }
-    public bool SingleThreaded            { get; private init; }
-    public Dictionary<string, string> Parameters { get; } = [];
-
-    public bool IsValid => !string.IsNullOrEmpty(InputFile) && !string.IsNullOrEmpty(OutputFolder);
-
-    public CommandLine(string[] args)
-    {
-        InputFile = "";
-        OutputFolder = "";
-
-        if (args.Length == 0 || args.Contains("--help"))
-        {
-            PrintHelp();
-            return;
-        }
-
-        // Extract passthrough parameters after "--"
-        var passthroughIndex = Array.IndexOf(args, "--");
-
-        if (passthroughIndex >= 0)
-        {
-            if (passthroughIndex < args.Length - 1)
-                Passthrough = args.Skip(passthroughIndex + 1).ToArray();
-
-            args = args.Take(passthroughIndex).ToArray();
-        }
-
-        if (args.Length < 2)
-        {
-            Console.WriteLine("Missing required parameters.");
-            PrintHelp();
-            return;
-        }
-
-        InputFile = args[0];
-        OutputFolder = args[1];
-
-        foreach (var arg in args.Skip(2))
-        {
-            if (arg.StartsWith("--mask="))
-            {
-                Mask = arg.Substring("--mask=".Length);
-            }
-            else if (arg.StartsWith("--detect="))
-            {
-                Detect = arg.Substring("--detect=".Length).ToLowerInvariant();
-            }
-            else if (arg.StartsWith("--crop="))
-            {
-                Crop = ParseCrop(arg.Substring("--crop=".Length));
-            }
-            else if (arg == "--crop")
-            {
-                Crop = ParseCrop("");
-            }
-            else if (arg == "--text")
-            {
-                PlainText = true;
-            }
-            else if (arg == "--debug")
-            {
-                Debug = true;
-            }
-            else if (arg == "--single-thread")
-            {
-                SingleThreaded = true;
-            }
-            else if (arg.StartsWith("--gravitate="))
-            {
-                var val = arg.Substring("--gravitate=".Length);
-                GravitateTo = ParseGravitate(val);
-            }
-            else if (arg.StartsWith("--duration="))
-            {
-                var dur = arg.Substring("--duration=".Length);
-                OverrideTargetDuration = ParseDuration(dur);
-                if (OverrideTargetDuration <= 0)
-                {
-                    Console.WriteLine($"Invalid --duration value: {dur}");
-                    return;
-                }
-            }
-            else if (arg.StartsWith("-p:", StringComparison.Ordinal))
-            {
-                var spec = arg.Substring("-p:".Length);
-                if (!TryParseParameter(spec, out var key, out var value))
-                {
-                    Console.WriteLine($"Invalid -p parameter: {spec}");
-                    return;
-                }
-
-                Parameters[key] = value;
-            }
-            else if (arg == "--estimate")
-            {
-                EstimateOnly = true;
-            }
-            else if (arg == "--force")
-            {
-                ForceFixed = true;
-            }
-        }
-    }
+    public string                     InputFile              { get; set; } = null!;
+    public string                     OutputFolder           { get; set; } = null!;
+    public (int width, int height)?   Crop                   { get; set; }
+    public Point2f?                   GravitateTo            { get; set; }
+    public string?                    Mask                   { get; set; }
+    public bool                       Debug                  { get; set; }
+    public string?                    Detect                 { get; set; }
+    public double?                    OverrideTargetDuration { get; set; }
+    public string[]                   Passthrough            { get; set; } = [];
+    public bool                       PlainText              { get; set; }
+    public bool                       EstimateOnly           { get; set; }
+    public bool                       ForceFixed             { get; set; }
+    public bool                       SingleThreaded         { get; set; }
+    public Dictionary<string, string> Parameters             { get; set; } = [];
 
     public void Override<T>(ref T member, string name)
     {
@@ -143,6 +42,138 @@ public sealed class CommandLine
         {
             Console.WriteLine($"Invalid value for parameter '{name}': {raw}");
         }
+    }
+
+}
+
+public sealed class CommandLine
+{
+    public SingleJob Master { get; } = new SingleJob();
+    public SingleJob[] Jobs { get; }
+
+    public bool IsValid => !string.IsNullOrEmpty(Master.InputFile) && !string.IsNullOrEmpty(Master.OutputFolder) && Jobs.Length > 0;
+
+    public CommandLine(string[] args)
+    {
+        Master.InputFile = "";
+        Master.OutputFolder = "";
+        Jobs = [];
+
+        if (args.Length == 0 || args.Contains("--help"))
+        {
+            PrintHelp();
+            return;
+        }
+
+        // Extract passthrough parameters after "--"
+        var passthroughIndex = Array.IndexOf(args, "--");
+
+        if (passthroughIndex >= 0)
+        {
+            if (passthroughIndex < args.Length - 1)
+                Master.Passthrough = args.Skip(passthroughIndex + 1).ToArray();
+
+            args = args.Take(passthroughIndex).ToArray();
+        }
+
+        if (args.Length < 1)
+        {
+            Console.WriteLine("Missing required parameters.");
+            PrintHelp();
+            return;
+        }
+
+        Master.InputFile = args[0];
+        var hasOutputFolder = args.Length > 1 && !args[1].StartsWith("-");
+
+        if (hasOutputFolder)
+            Master.OutputFolder = args[1];
+        else
+            Master.OutputFolder = Path.Combine(Path.GetDirectoryName(Master.InputFile) ?? Directory.GetCurrentDirectory(), "Splitter");
+        foreach (var arg in args.Skip(hasOutputFolder ? 2 : 1))
+        {
+            if (arg.StartsWith("--mask="))
+            {
+                Master.Mask = arg.Substring("--mask=".Length);
+            }
+            else if (arg.StartsWith("--detect="))
+            {
+                Master.Detect = arg.Substring("--detect=".Length).ToLowerInvariant();
+            }
+            else if (arg.StartsWith("--crop="))
+            {
+                Master.Crop = ParseCrop(arg.Substring("--crop=".Length));
+            }
+            else if (arg == "--crop")
+            {
+                Master.Crop = ParseCrop("");
+            }
+            else if (arg == "--text")
+            {
+                Master.PlainText = true;
+            }
+            else if (arg == "--debug")
+            {
+                Master.Debug = true;
+            }
+            else if (arg == "--single-thread")
+            {
+                Master.SingleThreaded = true;
+            }
+            else if (arg.StartsWith("--gravitate="))
+            {
+                var val = arg.Substring("--gravitate=".Length);
+                Master.GravitateTo = ParseGravitate(val);
+            }
+            else if (arg.StartsWith("--duration="))
+            {
+                var dur = arg.Substring("--duration=".Length);
+                Master.OverrideTargetDuration = ParseDuration(dur);
+                if (Master.OverrideTargetDuration <= 0)
+                {
+                    Console.WriteLine($"Invalid --duration value: {dur}");
+                    return;
+                }
+            }
+            else if (arg.StartsWith("-p:", StringComparison.Ordinal))
+            {
+                var spec = arg.Substring("-p:".Length);
+                if (!TryParseParameter(spec, out var key, out var value))
+                {
+                    Console.WriteLine($"Invalid -p parameter: {spec}");
+                    return;
+                }
+
+                Master.Parameters[key] = value;
+            }
+            else if (arg == "--estimate")
+            {
+                Master.EstimateOnly = true;
+            }
+            else if (arg == "--force")
+            {
+                Master.ForceFixed = true;
+            }
+        }
+
+        var files = FileMaskExpander.Expand(Master.InputFile);
+        Jobs = files.Select(x => new SingleJob
+        {
+            InputFile              = x,
+            OutputFolder           = Master.OutputFolder,
+            Crop                   = Master.Crop,
+            GravitateTo            = Master.GravitateTo,
+            Mask                   = Master.Mask,
+            Debug                  = Master.Debug,
+            Detect                 = Master.Detect,
+            OverrideTargetDuration = Master.OverrideTargetDuration,
+            Passthrough            = Master.Passthrough,
+            PlainText              = Master.PlainText,
+            EstimateOnly           = Master.EstimateOnly,
+            ForceFixed             = Master.ForceFixed,
+            SingleThreaded         = Master.SingleThreaded,
+            Parameters             = new Dictionary<string, string>(Master.Parameters)
+        }).ToArray();
     }
 
     private static bool TryParseParameter(string spec, out string key, out string value)
@@ -298,6 +329,8 @@ Options:
 
 Passthrough:
   Anything after -- is passed directly to ffmpeg.
+
+input.mp4 can be a file mask, e.g. ""videos/*.mp4"". Output files will be named based on the input filename and the --mask pattern if provided.
 
 Examples:
   splitter vertical-video.mp4 out/

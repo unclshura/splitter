@@ -9,19 +9,17 @@ namespace splitter;
 
 public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
 {
-    private readonly int  _segmentNo;
     private readonly int  _cropWidth;
     private readonly int  _cropHeight;
     private readonly bool _debugOverlay;
     private readonly bool _plainText;
 
     private readonly IObjectDetector _detector;
-    private readonly CommandLine     _cmd;
+    private readonly SingleJob     _cmd;
 
-    public TrackingSplitter(int segmentNo, int cropWidth, int cropHeight, bool debugOverlay, bool plainText, IObjectDetector detector, CommandLine cmd, ILogger logger) 
+    public TrackingSplitter(int segmentNo, int cropWidth, int cropHeight, bool debugOverlay, bool plainText, IObjectDetector detector, SingleJob cmd, ILogger logger) 
         : base(logger, segmentNo)
     {
-        _segmentNo    = segmentNo;
         _cropWidth    = cropWidth;
         _cropHeight   = cropHeight;
         _debugOverlay = debugOverlay;
@@ -40,7 +38,10 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
     { 
         using var capture = new VideoCapture(inputFile);
         if (!capture.IsOpened())
-            throw new Exception("Cannot open video");
+        {
+            LogError($"{Path.GetFileName(inputFile)}: Cannot open video");
+            return;
+        }
 
         var name     = Path.GetFileNameWithoutExtension(outputFile);
         var skip     = TimeSpan.FromSeconds(start);
@@ -56,7 +57,7 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
         var originalCropWidth  = _cropWidth;
         var originalCropHeight = _cropHeight;
 
-        LogInfo($"[TrackingSplitter] skip={skip}, duration={duration}, fps={fps}, totalFrames={totalFrames}");
+        LogInfo($"{Path.GetFileName(outputFile)}:: [TrackingSplitter] skip={skip}, duration={duration}, fps={fps}, totalFrames={totalFrames}");
 
         var encWidth  = _debugOverlay ? videoWidth  : originalCropWidth;
         var encHeight = _debugOverlay ? videoHeight : originalCropHeight;
@@ -170,9 +171,9 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
         ClearProgress();
 
         if (ffmpeg.ExitCode != 0)
-            LogError($"Segment {name} FFmpeg encoding failed");
+            LogError($"{Path.GetFileName(outputFile)}: Segment {name} FFmpeg encoding failed");
         else
-            LogInfo($"Segment {name} processing completed");
+            LogInfo($"{Path.GetFileName(outputFile)}: Segment {name} processing completed");
     }
 
     private (Rect box, Point2f center)? SelectTrackedObject(

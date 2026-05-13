@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
@@ -7,6 +8,17 @@ using splitter;
 static class Program
 {
     private static ILogger _logger = null!;
+
+    private record SingleTask(
+        SingleJob Job,
+        string OutputFileName,
+        int SegmentIndex,
+        int TotalSegments,
+        double SegmentStart,
+        double SegmentLength,
+        Func<int, ISegmentProcessor> ProcessorFactory
+        );
+
     static async Task<int> Main(string[] args)
     {
         Task? uiTask = null;
@@ -15,30 +27,44 @@ static class Program
         if ( !cmd.IsValid)
             return -1;
 
-        if (cmd.PlainText)
+        CancellationTokenSource? cts = null;
+
+        if (cmd.Master.PlainText)
         {
             _logger = new TextLogger();
         }
         else
         {
-            Console.SetBufferSize(Console.WindowWidth, Console.BufferHeight);
-
             var logger = new SpectreConsoleLogger
             {
                 Title = "Splitter",
-                NumberOfProcesses = cmd.SingleThreaded ? 1 : Math.Max(1, Environment.ProcessorCount / 2)
+                NumberOfProcesses = cmd.Master.SingleThreaded ? 1 : Math.Max(1, Environment.ProcessorCount / 2) + 1
             };
             _logger = logger;
 
-            using var cts = new CancellationTokenSource();
-
+            cts = new CancellationTokenSource();
             uiTask = logger.RunAsync(cts.Token);
         }
 
-        var success = await ProcessAll(cmd);
+        var allJobs = new List<SingleTask>();
+        foreach ( var job in cmd.Jobs )
+        {
+            var jobs = await GenerateJobs(cmd, job);
+            allJobs.AddRange(jobs);
+        }
 
+        if ( allJobs.Count == 0)
+        {
+            if ( !cmd.Master.EstimateOnly)
+                LogWarn("No valid jobs to process.");
+            return 0;
+        }
+
+        var success = await ProcessJobs(cmd, allJobs);
         if (uiTask != null)
         {
+            if ( cts != null )
+                await cts.CancelAsync();
             await uiTask;
         }
         if (_logger is IDisposable disposable)
@@ -47,34 +73,35 @@ static class Program
         return success ? 1 : 0;
     }
 
-    private static async Task<bool> ProcessAll(CommandLine cmd)
+    private static async Task<List<SingleTask>> GenerateJobs(CommandLine cmd, SingleJob job)
     {
-        if (!File.Exists(cmd.InputFile))
+        var baseName = Path.GetFileNameWithoutExtension(job.InputFile);
+
+        if (!File.Exists(job.InputFile))
         {
-            LogError("Input file not found.");
-            return false;
+            LogError($"{baseName}: Input file not found.");
+            return [];
         }
 
-        if (!Directory.Exists(cmd.OutputFolder))
-            Directory.CreateDirectory(cmd.OutputFolder);
+        if (!Directory.Exists(job.OutputFolder))
+            Directory.CreateDirectory(job.OutputFolder);
 
-        var baseName = Path.GetFileNameWithoutExtension(cmd.InputFile);
-        var outputMask = cmd.Mask ?? $"{baseName}_Seg%03d.mp4";
-        LogInfo("Reading duration via ffprobe...");
+        job.Mask ??= $"{baseName}_seg%03d.mp4";
+        LogInfo($"{baseName}: Reading duration via ffprobe...");
 
-        var duration = GetDuration(cmd.InputFile);
+        var duration = GetDuration(job.InputFile);
         if (duration <= 0)
         {
-            LogError("Could not read duration.");
-            return false;
+            LogError($"{baseName}: Could not read duration.");
+            return [];
         }
 
-        var target = cmd.OverrideTargetDuration ?? 58.0;
+        var target = job.OverrideTargetDuration ?? 58.0;
 
         int segments;
         double segmentLength;
 
-        if (cmd.ForceFixed)
+        if (job.ForceFixed)
         {
             // Fixed chunk size, last one may be shorter
             segments = (int)Math.Ceiling(duration / target);
@@ -87,63 +114,82 @@ static class Program
             segmentLength = duration / segments;
         }
 
-        if (cmd.EstimateOnly)
+        if (cmd.Master.EstimateOnly)
         {
             LogInfo("=== ESTIMATE MODE ===");
-            LogInfo($"Total duration: {duration:F2}s");
-            LogInfo($"Target duration: {target:F2}s");
-            LogInfo($"Segments: {segments}");
-            LogInfo(cmd.ForceFixed
-                ? $"Fixed segment length: {segmentLength:F2}s (last may be shorter)"
-                : $"Equalized segment length: {segmentLength:F2}s");
-            return false;
+            LogInfo($"{baseName}: Total duration: {duration:F2}s");
+            LogInfo($"{baseName}: Target duration: {target:F2}s");
+            LogInfo($"{baseName}: Segments: {segments}");
+            LogInfo(job.ForceFixed
+                ? $"{baseName}: Fixed segment length: {segmentLength:F2}s (last may be shorter)"
+                : $"{baseName}: Equalized segment length: {segmentLength:F2}s");
+            return [];
         }
 
-        LogInfo($"Duration: {duration:F2}s");
-        LogInfo($"Segments: {segments}");
-        LogInfo($"Equal segment length: {segmentLength:F3}s");
+        LogInfo($"{baseName}: Duration: {duration:F2}s");
+        LogInfo($"{baseName}: Segments: {segments}");
+        LogInfo($"{baseName}: Equal segment length: {segmentLength:F3}s");
 
         Func<int, ISegmentProcessor> processorFactory;
-        if (cmd.Crop != null)
+        if (job.Crop != null)
         {
             processorFactory = i =>
             {
-                IObjectDetector detector = cmd.Detect switch
+                IObjectDetector detector = job.Detect switch
                 {
                     "face" => new UltraFaceDetector(_logger),
                     "body" => new YoloOnnxObjectDetector(_logger),
-                    _      => throw new InvalidOperationException($"Unknown detector: {cmd.Detect}")
+                    _      => throw new InvalidOperationException($"Unknown detector: {job.Detect}")
                 };
-                return new TrackingSplitter(i, cmd.Crop.Value.width, cmd.Crop.Value.height, cmd.Debug, cmd.PlainText, detector, cmd, _logger);
+                return new TrackingSplitter(i, job.Crop.Value.width, job.Crop.Value.height, cmd.Master.Debug, cmd.Master.PlainText, detector, job, _logger);
             };
         }
         else
         {
             processorFactory = i => new SimpleSplitter(i, _logger);
         }
-        if (cmd.SingleThreaded)
+
+        var jobs = Enumerable.Range(0, segments)
+            .Select(i => new SingleTask
+                (
+                    Job              : job,
+                    OutputFileName   : BuildOutputFileName(job.OutputFolder, job.Mask, i),
+                    SegmentIndex     : i,
+                    TotalSegments    : segments,
+                    SegmentStart     : i * segmentLength,
+                    SegmentLength    : (i == segments - 1)
+                        ? Math.Max(0.1, duration - i * segmentLength)
+                                     : segmentLength,
+                    ProcessorFactory : processorFactory
+                )
+            )
+            .ToList();
+
+        return jobs;
+    }
+
+    private static async Task<bool> ProcessJobs(CommandLine cmd, List<SingleTask> tasks)
+    { 
+
+        if (cmd.Master.SingleThreaded)
         {
             LogInfo("Starting single-threaded splitting...");
-            await RunSingleThreaded(processorFactory, cmd.InputFile, cmd.OutputFolder, outputMask, duration, segments, segmentLength, cmd.Passthrough);
+            await RunSingleThreaded(tasks);
         }
         else
         {
             LogInfo("Starting multi-threaded splitting...");
-            await RunMultiThreaded(processorFactory, cmd.InputFile, cmd.OutputFolder, outputMask, duration, segments, segmentLength, cmd.Passthrough);
+            await RunMultiThreaded(tasks);
         }
 
         LogInfo("Done.");
         return true;
     }
 
-    private static void LogInfo(string message)
-        => _logger.LogInfo(message);
-
-    private static void LogWarn(string message)
-        => _logger.LogWarn(message);
-
-    private static void LogError(string message)
-        => _logger.LogError(message);
+    private static void LogInfo(string message)  => _logger.LogInfo(message);
+    private static void LogWarn(string message)  => _logger.LogWarn(message);
+    private static void LogError(string message) => _logger.LogError(message);
+    private static void LogProgress(double progress, TimeSpan eta, double speed) => _logger.DrawProgress("Total", 0, progress, eta, speed);
 
     // -----------------------------
     // ffprobe
@@ -153,11 +199,11 @@ static class Program
     {
         var psi = new ProcessStartInfo
         {
-            FileName = "ffprobe",
-            Arguments = $"-v error -show_entries format=duration -of csv=p=0 \"{inputFile}\"",
+            FileName               = "ffprobe",
+            Arguments              = $"-v error -show_entries format=duration -of csv=p=0 \"{inputFile}\"",
             RedirectStandardOutput = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
+            UseShellExecute        = false,
+            CreateNoWindow         = true
         };
 
         using var proc = Process.Start(psi) ?? throw new Exception("Failed to start ffprobe.");
@@ -175,30 +221,22 @@ static class Program
     // Multi-threaded splitting
     // -----------------------------
 
-    static async Task RunMultiThreaded(
-        Func<int, ISegmentProcessor> processorFactory,
-        string inputFile,
-        string outputFolder,
-        string mask,
-        double totalDuration,
-        int segments,
-        double segmentLength,
-        string[] passthrough)
+    static async Task RunMultiThreaded(List<SingleTask> jobs)
     {
-        var jobs = Enumerable.Range(0, segments)
-            .Select(i => new
-            {
-                Index = i,
-                Start = i * segmentLength,
-                Length = (i == segments - 1)
-                    ? Math.Max(0.1, totalDuration - i * segmentLength)
-                    : segmentLength
-            })
-            .ToList();
+        LogProgress(0.0, TimeSpan.Zero, 0.0);
 
         var maxDegree = Math.Max(1, Environment.ProcessorCount / 2);
+
         using var sem = new SemaphoreSlim(maxDegree);
         var tasks = new List<Task>();
+
+        // Slot pool: 0..maxDegree-1
+        var freeSlots = new ConcurrentQueue<int>(Enumerable.Range(0, maxDegree));
+
+        var totalSegments     = jobs.Count;
+        var processedSegments = 0;
+        var totalDuration     = jobs.Sum(j => j.SegmentLength);
+        var sw                = Stopwatch.StartNew();
 
         foreach (var job in jobs)
         {
@@ -206,12 +244,36 @@ static class Program
 
             tasks.Add(Task.Run(async () =>
             {
+                int slot = -1;
+
                 try
                 {
-                    await ProcessSegment(processorFactory, inputFile, outputFolder, mask, passthrough, job.Index, job.Start, job.Length);
+                    // Acquire a slot ID
+                    while (!freeSlots.TryDequeue(out slot))
+                        await Task.Yield();
+
+                    await ProcessSegment(
+                        job.ProcessorFactory,
+                        job.Job.InputFile,
+                        job.OutputFileName,
+                        job.Job.Passthrough,
+                        slot + 1,                     // <-- slot instead of SegmentIndex (+1 for totals)
+                        job.SegmentStart,
+                        job.SegmentLength
+                    );
+
+                    var processed = Interlocked.Increment(ref processedSegments);
+                    var elapsed   = sw.Elapsed;
+                    var eta       = TimeSpan.FromTicks(elapsed.Ticks * (totalSegments - processed) / processed);
+                    var speed     = (processed * totalDuration) / elapsed.TotalSeconds;
+                    LogProgress((double)processed / totalSegments, eta, speed);
                 }
                 finally
                 {
+                    // Return slot to pool
+                    if (slot >= 0)
+                        freeSlots.Enqueue(slot);
+
                     sem.Release();
                 }
             }));
@@ -220,41 +282,34 @@ static class Program
         await Task.WhenAll(tasks);
     }
 
-    static async Task RunSingleThreaded(
-        Func<int, ISegmentProcessor> processorFactory,
-        string inputFile,
-        string outputFolder,
-        string mask,
-        double totalDuration,
-        int segments,
-        double segmentLength,
-        string[] passthrough)
-    {
-        var jobs = Enumerable.Range(0, segments)
-            .Select(i => new
-            {
-                Index = i,
-                Start = i * segmentLength,
-                Length = (i == segments - 1)
-                    ? Math.Max(0.1, totalDuration - i * segmentLength)
-                    : segmentLength
-            })
-            .ToList();
 
+    // -----------------------------
+    // Single-threaded splitting
+    // -----------------------------
+
+    static async Task RunSingleThreaded(List<SingleTask> jobs)
+    {
         foreach (var job in jobs)
         {
-            await ProcessSegment(processorFactory, inputFile, outputFolder, mask, passthrough, job.Index, job.Start, job.Length);
+            await ProcessSegment(
+                job.ProcessorFactory,
+                job.Job.InputFile,
+                job.OutputFileName,
+                job.Job.Passthrough,
+                job.SegmentIndex,
+                job.SegmentStart,
+                job.SegmentLength
+                );
         }
 
     }
 
-    private static async Task ProcessSegment(Func<int, ISegmentProcessor> processorFactory, string inputFile, string outputFolder, string mask, string[] passthrough, int index, double start, double length)
+    private static async Task ProcessSegment(Func<int, ISegmentProcessor> processorFactory, string inputFile, string outputFileName, string[] passthrough, int index, double start, double length)
     {
-        var outputFile = BuildOutputFileName(outputFolder, mask, index);
         var processor = processorFactory(index);
         try
         {
-            await processor.ProcessSegment(inputFile, outputFile, start, length, passthrough);
+            await processor.ProcessSegment(inputFile, outputFileName, start, length, passthrough);
         }
         finally
         {
@@ -270,6 +325,10 @@ static class Program
         if (mask.Contains("%03d"))
         {
             fileName = string.Format(mask.Replace("%03d", "{0:000}"), index);
+        }
+        else if (mask.Contains("%02d"))
+        {
+            fileName = string.Format(mask.Replace("%02d", "{0:00}"), index);
         }
         else if (mask.Contains("%d"))
         {

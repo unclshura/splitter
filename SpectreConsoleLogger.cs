@@ -132,8 +132,15 @@ public sealed class SpectreConsoleLogger : ILogger, IDisposable
             {
                 while (!token.IsCancellationRequested)
                 {
-                    ctx.UpdateTarget(BuildRoot());
-                    await Task.Delay(100, token);
+                    try
+                    {
+                        ctx.UpdateTarget(BuildRoot());
+                        await Task.Delay(100, token);
+                    }
+                    catch ( Exception ex )
+                    {
+                        break;
+                    }
                 }
             });
     }
@@ -178,13 +185,13 @@ public sealed class SpectreConsoleLogger : ILogger, IDisposable
         var layout = new Layout("root")
             .SplitRows(
                 new Layout("progress") { Size = Math.Max(3, numberOfProcessesSnapshot + 2) },
-                new Layout("log"),
-                new Layout("buttons") { Size = 3 }
+                new Layout("log")
+                //new Layout("buttons") { Size = 3 }
             );
 
         layout["progress"].Update(BuildProgressPanel(progressSnapshot));
         layout["log"].Update(BuildLogPanel(logSnapshot));
-        layout["buttons"].Update(BuildButtonsPanel());
+        //layout["buttons"].Update(BuildButtonsPanel());
         return layout;
     }
 
