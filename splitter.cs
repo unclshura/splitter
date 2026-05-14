@@ -5,22 +5,9 @@ using System.Text;
 using Spectre.Console;
 using splitter;
 
-static class Program
+static partial class Program
 {
     private static ILogger _logger = null!;
-
-    private record SingleTask(
-        SingleJob Job,
-        string OutputFileName,
-        int SegmentIndex,
-        int TotalSegments,
-        double SegmentStart,
-        double SegmentLength,
-        int VideoWidth,
-        int VideoHeight,
-        double VideoFps,
-        Func<int, ISegmentProcessor> ProcessorFactory
-        );
 
     static async Task<int> Main(string[] args)
     {
@@ -47,6 +34,9 @@ static class Program
             cts = new CancellationTokenSource();
             uiTask = logger.RunAsync(cts.Token);
         }
+
+        if (cmd.Master.EstimateOnly)
+            LogInfo("=== ESTIMATE MODE ===");
 
         var allJobs = new List<SingleTask>();
         foreach ( var job in cmd.Jobs )
@@ -89,10 +79,9 @@ static class Program
             Directory.CreateDirectory(job.OutputFolder);
 
         job.Mask ??= $"{baseName}_seg%03d.mp4";
-        LogInfo($"{baseName}: Reading duration via ffprobe...");
 
-        (double duration, int width, int height, double fps) = ProbeVideo(job.InputFile);
-        if (duration <= 0)
+        var info = ProbeVideo.Probe(job.InputFile);
+        if (info.Duration <= 0)
         {
             LogError($"{baseName}: Could not read duration.");
             return [];
@@ -106,25 +95,17 @@ static class Program
         if (job.ForceFixed)
         {
             // Fixed chunk size, last one may be shorter
-            segments = (int)Math.Ceiling(duration / target);
+            segments = (int)Math.Ceiling(info.Duration / target);
             segmentLength = target;
         }
         else
         {
             // Equalized segments
-            segments = (int)Math.Ceiling(duration / target);
-            segmentLength = duration / segments;
+            segments = (int)Math.Ceiling(info.Duration / target);
+            segmentLength = info.Duration / segments;
         }
 
-        if (cmd.Master.EstimateOnly)
-            LogInfo("=== ESTIMATE MODE ===");
-
-        LogInfo($"{baseName}: Duration {duration:F2}s, {width}x{height} @ {fps:F3}fps");
-        LogInfo($"{baseName}: Target duration: {target:F2}s");
-        LogInfo($"{baseName}: Segments: {segments}");
-        LogInfo(job.ForceFixed
-            ? $"{baseName}: Fixed segment length: {segmentLength:F2}s (last may be shorter)"
-            : $"{baseName}: Equalized segment length: {segmentLength:F2}s");
+        LogInfo($"{baseName}: Duration {info.Duration:F2}s, {info.Width}x{info.Height} @ {info.Fps:F3}fps {info.Bitrate/1024:F0}kbps, Target duration: {target:F2}s Segments: {segments} segment length: {segmentLength:F2}s {(job.ForceFixed ? " fixed" : "")}" );
 
         if (cmd.Master.EstimateOnly)
             return [];
@@ -152,17 +133,15 @@ static class Program
             .Select(i => new SingleTask
                 (
                     Job              : job,
+                    Info: info,
                     OutputFileName   : BuildOutputFileName(job.OutputFolder, job.Mask, i),
                     SegmentIndex     : i,
                     TotalSegments    : segments,
                     SegmentStart     : i * segmentLength,
                     SegmentLength    : (i == segments - 1)
-                        ? Math.Max(0.1, duration - i * segmentLength)
+                        ? Math.Max(0.1, info.Duration - i * segmentLength)
                                      : segmentLength,
-                    ProcessorFactory : processorFactory,
-                    VideoWidth       : width,
-                    VideoHeight      : height,
-                    VideoFps         : fps
+                    ProcessorFactory : processorFactory
                 )
             )
             .ToList();
@@ -273,15 +252,7 @@ static class Program
         var processor = t.ProcessorFactory(slot);
         try
         {
-            await processor.ProcessSegment(
-                t.Job.InputFile,
-                t.OutputFileName,
-                t.SegmentStart,
-                t.SegmentLength,
-                t.VideoWidth,
-                t.VideoHeight,
-                t.VideoFps,
-                t.Job.Passthrough);
+            await processor.ProcessSegment(t);
         }
         finally
         {
@@ -317,73 +288,6 @@ static class Program
         return Path.Combine(folder, fileName);
     }
 
-    public static (double duration, int width, int height, double fps) ProbeVideo(string inputFile)
-    {
-        var args =
-        "-v error " +
-        "-select_streams v:0 " +
-        "-show_entries format=duration " +
-        "-show_entries stream=width,height,avg_frame_rate " +
-        "-of default=noprint_wrappers=1:nokey=0 " +   // <-- IMPORTANT: include keys
-        $"\"{inputFile}\"";
-
-        var psi = new ProcessStartInfo
-        {
-            FileName               = "ffprobe",
-            Arguments              = args,
-            RedirectStandardOutput = true,
-            RedirectStandardError  = true,
-            UseShellExecute        = false,
-            CreateNoWindow         = true
-        };
-
-        using var p = new Process { StartInfo = psi };
-        p.Start();
-
-        var duration = -1.0;
-        var width    = 0;
-        var height   = 0;
-        var fps      = 0.0;
-
-        while (!p.StandardOutput.EndOfStream)
-        {
-            var line = p.StandardOutput.ReadLine()?.Trim();
-            if (string.IsNullOrWhiteSpace(line))
-                continue;
-
-            if (line.StartsWith("duration="))
-            {
-                var v = line.Substring("duration=".Length);
-                double.TryParse(v, NumberStyles.Any, CultureInfo.InvariantCulture, out duration);
-            }
-            else if (line.StartsWith("width="))
-            {
-                var v = line.Substring("width=".Length);
-                int.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out width);
-            }
-            else if (line.StartsWith("height="))
-            {
-                var v = line.Substring("height=".Length);
-                int.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out height);
-            }
-            else if (line.StartsWith("avg_frame_rate="))
-            {
-                var v = line.Substring("avg_frame_rate=".Length);
-                var parts = v.Split('/');
-                if (parts.Length == 2 &&
-                    double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var num) &&
-                    double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var den) &&
-                    den != 0)
-                {
-                    fps = num / den;
-                }
-            }
-        }
-
-        p.WaitForExit();
-
-        return (duration, width, height, fps);
-    }
 
 
 }

@@ -20,6 +20,7 @@ public class SingleJob
     public bool                       EstimateOnly           { get; set; }
     public bool                       ForceFixed             { get; set; }
     public bool                       SingleThreaded         { get; set; }
+    public int?                       Rotate                 { get; set; }
     public Dictionary<string, string> Parameters             { get; set; } = [];
 
     public void Override<T>(ref T member, string name)
@@ -100,6 +101,18 @@ public sealed class CommandLine
             {
                 Master.Detect = arg.Substring("--detect=".Length).ToLowerInvariant();
             }
+            else if (arg =="--rotate")
+            {
+                Master.Rotate = 90;
+            }
+            else if (arg.StartsWith("--rotate="))
+            {
+                var val = arg.Substring("--rotate=".Length);
+                if (int.TryParse(val, out var degrees) && (degrees == 90 || degrees == 180 || degrees == 270))
+                    Master.Rotate = degrees;
+                else
+                    throw new FormatException($"Invalid --rotate value: {val}");
+            }
             else if (arg.StartsWith("--crop="))
             {
                 Master.Crop = ParseCrop(arg.Substring("--crop=".Length));
@@ -172,6 +185,7 @@ public sealed class CommandLine
             EstimateOnly           = Master.EstimateOnly,
             ForceFixed             = Master.ForceFixed,
             SingleThreaded         = Master.SingleThreaded,
+            Rotate                 = Master.Rotate,
             Parameters             = new Dictionary<string, string>(Master.Parameters)
         }).ToArray();
     }
@@ -296,6 +310,9 @@ Options:
   --force                Use fixed segment duration exactly as given.
                          Last segment may be shorter.
                          Default: OFF
+
+  --rotate=<degrees>     Rotate video by specified degrees (90, 180, 270).
+                         Useful for videos with incorrect orientation metadata.
 
   --estimate             Print calculated segment information and exit.
                          No splitting is performed.

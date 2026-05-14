@@ -9,15 +9,41 @@ namespace splitter;
 
 public class SimpleSplitter(int segmentNo, ILogger logger) : LoggingBase(logger, segmentNo), ISegmentProcessor
 {
-    public async Task ProcessSegment(string inputFile, string outputFile, double start, double length, int videoWidth, int videoHeight, double fps, string[] passthrough)
+    public async Task ProcessSegment(SingleTask job)
     {
-        var pass = passthrough.Length > 0 ? string.Join(" ", passthrough) : "";
+        string inputFile                     = job.Job.InputFile;
+        string outputFile                    = job.OutputFileName;
+        double start                         = job.SegmentStart;
+        double length                        = job.SegmentLength;
+        int videoWidth                       = job.Info.Width;
+        int videoHeight                      = job.Info.Height;
+        double fps                           = job.Info.Fps;
+        string[] ffmpegPassthroughParameters = job.Job.Passthrough;
+        
+        var pass = ffmpegPassthroughParameters.Length > 0 ? string.Join(" ", ffmpegPassthroughParameters) : "";
 
-        var args =
-        $"-ss {start.ToString(CultureInfo.InvariantCulture)} " +
-        $"-i \"{inputFile}\" " +
-        $"-t {length.ToString(CultureInfo.InvariantCulture)} " +
-        $"-c copy {pass} \"{outputFile}\" -y";
+        string args;
+        var rotation = GetRotationFilter(job.Job.Rotate);
+        if (rotation == null)
+        {
+            args =
+                $"-ss {start.ToString(CultureInfo.InvariantCulture)} " +
+                $"-i \"{inputFile}\" " +
+                $"-t {length.ToString(CultureInfo.InvariantCulture)} " +
+                $"-c copy {pass} \"{outputFile}\" -y";
+        }
+        else
+        {
+            // Rotation → must re-encode
+            args =
+                $"-ss {start.ToString(CultureInfo.InvariantCulture)} " +
+                $"-i \"{inputFile}\" " +
+                $"-t {length.ToString(CultureInfo.InvariantCulture)} " +
+                $"-vf \"{rotation}\" " +
+                "-c:v h264_nvenc -preset p4 -b:v 8M -pix_fmt yuv420p " +
+                "-c:a copy " +
+                $"{pass} \"{outputFile}\" -y";
+        }
 
         var psi = new ProcessStartInfo
         {
@@ -42,6 +68,16 @@ public class SimpleSplitter(int segmentNo, ILogger logger) : LoggingBase(logger,
         else
             LogInfo($"Segment {name} processing completed");
     }
+
+    string? GetRotationFilter(int? degrees) =>
+        degrees switch
+        {
+            90 => "transpose=1",
+            180 => "rotate=PI",
+            270 => "transpose=2",
+            _ => null
+        };
+
 
     private void ShowFFMpegProgress(double length, Process proc, string name)
     {

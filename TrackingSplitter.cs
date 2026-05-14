@@ -11,7 +11,6 @@ namespace splitter;
 public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
 {
     private readonly IObjectDetector _detector;
-    private readonly SingleJob       _cmd;
 
     public TrackingSplitter(
         int  progressLine,
@@ -21,7 +20,6 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
         : base(logger, progressLine)
     {
         _detector     = detector;
-        _cmd          = cmd;
     }
 
     public void Dispose()
@@ -30,14 +28,18 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
             d.Dispose();
     }
 
-    public async Task ProcessSegment(
-        string inputFile,
-        string outputFile,
-        double start,
-        double length,
-        int videoWidth, int videoHeight, double fps,
-        string[] ffmpegPassthroughParameters)
+    public async Task ProcessSegment(SingleTask job)
     {
+        string inputFile                     = job.Job.InputFile;
+        string outputFile                    = job.OutputFileName;
+        double start                         = job.SegmentStart;
+        double length                        = job.SegmentLength;
+        int videoWidth                       = job.Info.Width;
+        int videoHeight                      = job.Info.Height;
+        double fps                           = job.Info.Fps;
+        double bitrate                       = job.Info.Bitrate;
+        string[] ffmpegPassthroughParameters = job.Job.Passthrough;
+
         var name = Path.GetFileNameWithoutExtension(outputFile);
 
         // 1) Probe source video
@@ -47,19 +49,19 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
             return;
         }
 
-        if (_cmd.Crop == null)
+        if (job.Job.Crop == null)
         {
             LogError($"{name}: Crop parameters are required");
             return;
         }
 
-        var encWidth  = _cmd.Debug ? videoWidth  : _cmd.Crop.Value.width;
-        var encHeight = _cmd.Debug ? videoHeight : _cmd.Crop.Value.height;
+        var encWidth  = job.Job.Debug ? videoWidth  : job.Job.Crop.Value.width;
+        var encHeight = job.Job.Debug ? videoHeight : job.Job.Crop.Value.height;
 
         LogInfo($"{name}: src={videoWidth}x{videoHeight} @ {fps:F3}fps, seg=[{start:F3},{length:F3}] enc={encWidth}x{encHeight}");
 
         // 2) Start FFmpeg decode (video only → raw BGR24 to stdout)
-        var decode = StartFfmpegDecode(inputFile, start, length);
+        var decode = StartFfmpegDecode(inputFile, start, length, job.Job.Rotate, job.Job.PlainText);
         using var decodeStdout = decode.StandardOutput.BaseStream;
 
         // 3) Start FFmpeg encode (video from stdin + audio from original)
@@ -71,7 +73,8 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
             encWidth,
             encHeight,
             fps,
-            ffmpegPassthroughParameters);
+            ffmpegPassthroughParameters,
+            job.Job.PlainText);
 
         using var encodeStdin = encode.StandardInput.BaseStream;
 
@@ -89,10 +92,10 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
         var camera = new CameraController(
             videoWidth,
             videoHeight,
-            _cmd.Crop.Value.width,
-            _cmd.Crop.Value.height,
+            job.Job.Crop.Value.width,
+            job.Job.Crop.Value.height,
             kalman,
-            _cmd);
+            job.Job);
 
         var startTime   = DateTime.UtcNow;
         var totalFrames = (int)Math.Round(length * fps);
@@ -115,7 +118,7 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
             camera.Update(primary);
             var roi = camera.Roi;
 
-            if (_cmd.Debug)
+            if (job.Job.Debug)
             {
                 DrawDebug(frameMat, objects, camera, kalman);
                 frameMat.CopyTo(outMat);
@@ -165,15 +168,26 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
 
     // ---------- FFmpeg decode / encode ----------
 
-    private Process StartFfmpegDecode(string inputFile, double start, double length)
+    private Process StartFfmpegDecode(string inputFile, double start, double length, int? rotate, bool plainText)
     {
-        var ss = start.ToString("0.###", CultureInfo.InvariantCulture);
+        var ss = start .ToString("0.###", CultureInfo.InvariantCulture);
         var t  = length.ToString("0.###", CultureInfo.InvariantCulture);
+
+        var rotateStr = "";
+        if (rotate != null)
+        {
+            switch (rotate.Value)
+            {
+                case 90:  rotateStr = ",transpose=1";  break;
+                case 180: rotateStr = ",transpose=PI"; break;
+                case 270: rotateStr = ",transpose=2";  break;
+            }
+        }
 
         var args =
     $"-i \"{inputFile}\" -ss {ss} -t {t} " +
     "-an -sn " +
-    "-vf format=bgr24 " +
+    $"-vf format=bgr24{rotateStr} " +
     "-f rawvideo -";
 
         var psi = new ProcessStartInfo
@@ -191,20 +205,17 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
 
         var fileName = Path.GetFileName(inputFile);
 
-        if (_cmd.PlainText)
+        _ = Task.Run(() =>
         {
-            _ = Task.Run(() =>
+            try
             {
-                try
-                {
-                    string? line;
-                    while ((line = p.StandardError.ReadLine()) != null)
-                        if (_cmd.PlainText)
-                            LogInfo($"[ffmpeg-decode] {fileName}: {line}");
-                }
-                catch { }
-            });
-        }
+                string? line;
+                while ((line = p.StandardError.ReadLine()) != null)
+                    if (plainText)
+                        LogInfo($"[ffmpeg-decode] {fileName}: {line}");
+            }
+            catch { }
+        });
 
         return p;
     }
@@ -217,7 +228,8 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
         int width,
         int height,
         double fps,
-        string[] passthrough)
+        string[] passthrough,
+        bool plainText)
     {
         var pass   = passthrough.Length > 0 ? string.Join(" ", passthrough) : "";
         var fpsStr = fps.ToString("0.###", CultureInfo.InvariantCulture);
@@ -230,9 +242,10 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
             $"-ss {ss} -i \"{inputFile}\" " +
             "-map 0:v:0 -map 1:a:0? -shortest " +
             "-c:v h264_nvenc -preset p4 -b:v 8M -pix_fmt yuv420p " +
-            "-c:a aac -b:a 192k " +
+            "-c:a copy " +
             pass + $" \"{outputFile}\"";
 
+        // "-c:a aac -b:a 192k " +
 
 
         var psi = new ProcessStartInfo
@@ -257,7 +270,7 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
                 string? line;
                 while ((line = p.StandardError.ReadLine()) != null)
                 {
-                    if (_cmd.PlainText)
+                    if (plainText)
                         LogInfo($"[ffmpeg-encode] {fileName}: {line}");
                 }
             }
