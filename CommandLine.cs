@@ -80,8 +80,8 @@ public sealed class CommandLine
 
         if (args.Length < 1)
         {
-            Console.WriteLine("Missing required parameters.");
             PrintHelp();
+            Console.WriteLine("[ERROR]: Missing required parameters.");
             return;
         }
 
@@ -202,16 +202,16 @@ public sealed class CommandLine
 
         if ( Jobs.Length == 0)
         {
-            Console.WriteLine("No valid input files found.");
             PrintHelp();
+            Console.WriteLine("[ERROR]:No valid input files found.");
             return;
         }
 
         if (string.IsNullOrWhiteSpace(Master.OutputFolder))
         {
-            Console.WriteLine("No output folder specified.");
-            PrintHelp();
-            return;
+            var firstInput = Jobs[0].InputFile;
+            Master.OutputFolder = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(firstInput))!, "Splitter");
+            Console.WriteLine($"Using default output folder: {Master.OutputFolder}");
         }
     }
 
@@ -330,6 +330,9 @@ Usage:
   splitter [<input.mp4> ...] [options] [--] <ffmpeg passthrough>
 
 Options:
+  --out=<folder>         Output folder for segments.
+                         Default: same folder as input video + ""Splitter"".
+
   --file=<path>          Input names or file masks (e.g. ""videos/*.mp4"").
                          If not specified, the first non-option argument is used as input.
 
@@ -349,7 +352,7 @@ Options:
                            --duration=45
 
                          Without --force:
-                           Segments are equalized so all have same length.
+                           Default: maximum of 58 seconds, but segments are equalized so all have same length.
 
   --force                Use fixed segment duration exactly as given.
                          Last segment may be shorter.
@@ -394,7 +397,7 @@ Passthrough:
 input.mp4 can be a file mask, e.g. ""videos/*.mp4"". Output files will be named based on the input filename and the --mask pattern if provided.
 
 Examples:
-  splitter vertical-video.mp4 --out=out/
+  splitter vertical-video.mp4
   splitter vertical-video.mp4 --duration=90s
   splitter vertical-video.mp4 --duration=2m30s --mask=""[NAME]_[NNNN].mp4""
   splitter vertical-video.mp4 --estimate
