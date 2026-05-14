@@ -6,7 +6,7 @@ public static class FileMaskExpander
     {
         // If no mask, return the single full path
         if (!HasMask(input))
-            return new[] { Path.GetFullPath(input) };
+            return [Path.GetFullPath(input)];
 
         string directory = Path.GetDirectoryName(input) ?? Directory.GetCurrentDirectory();
         string pattern   = Path.GetFileName(input);

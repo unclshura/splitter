@@ -78,8 +78,6 @@ static partial class Program
         if (!Directory.Exists(job.OutputFolder))
             Directory.CreateDirectory(job.OutputFolder);
 
-        job.Mask ??= $"{baseName}_seg%03d.mp4";
-
         var info = ProbeVideo.Probe(job.InputFile);
         if (info.Duration <= 0)
         {
@@ -105,7 +103,8 @@ static partial class Program
             segmentLength = info.Duration / segments;
         }
 
-        LogInfo($"{baseName}: Duration {info.Duration:F2}s, {info.Width}x{info.Height} @ {info.Fps:F3}fps {info.Bitrate/1024:F0}kbps, Target duration: {target:F2}s Segments: {segments} segment length: {segmentLength:F2}s {(job.ForceFixed ? " fixed" : "")}" );
+        LogInfo($"{baseName}: Duration {info.Duration:F2}s, {info.Width}x{info.Height} @ {info.Fps:F3}fps {info.Bitrate/1024:F0}kbps," +
+            $" Target duration: {target:F2}s Segments: {segments} segment length: {segmentLength:F2}s {(job.ForceFixed ? " fixed" : "")}" );
 
         if (cmd.Master.EstimateOnly)
             return [];
@@ -134,7 +133,7 @@ static partial class Program
                 (
                     Job              : job,
                     Info: info,
-                    OutputFileName   : BuildOutputFileName(job.OutputFolder, job.Mask, i),
+                    OutputFileName   : BuildOutputFileName(job, i),
                     SegmentIndex     : i,
                     TotalSegments    : segments,
                     SegmentStart     : i * segmentLength,
@@ -261,31 +260,20 @@ static partial class Program
         }
     }
 
-    static string BuildOutputFileName(string folder, string mask, int index)
+    static string BuildOutputFileName(SingleJob job, int index)
     {
         string fileName;
 
-        if (mask.Contains("%03d"))
-        {
-            fileName = string.Format(mask.Replace("%03d", "{0:000}"), index);
-        }
-        else if (mask.Contains("%02d"))
-        {
-            fileName = string.Format(mask.Replace("%02d", "{0:00}"), index);
-        }
-        else if (mask.Contains("%d"))
-        {
-            fileName = string.Format(mask.Replace("%d", "{0}"), index);
-        }
-        else
-        {
-            // If no placeholder, append index
-            var name = Path.GetFileNameWithoutExtension(mask);
-            var ext = Path.GetExtension(mask);
-            fileName = $"{name}_{index:000}{ext}";
-        }
+        fileName = Path.GetFileName(job.Mask ?? "[NAME]_seg[NN].[EXT]")
+            .Replace("[NAME]", Path.GetFileNameWithoutExtension(job.InputFile))
+            .Replace("[N]"   , index.ToString())
+            .Replace("[NN]"  , index.ToString("00"))
+            .Replace("[NNN]" , index.ToString("000"))
+            .Replace("[NNNN]", index.ToString("0000"))
+            .Replace("[EXT]" , Path.GetExtension(job.InputFile).TrimStart('.'))
+            ;
 
-        return Path.Combine(folder, fileName);
+        return Path.Combine(job.OutputFolder, fileName);
     }
 
 

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
+using OpenCvSharp;
 
 namespace splitter;
 
@@ -52,7 +53,7 @@ public sealed class CommandLine
     public SingleJob Master { get; } = new SingleJob();
     public SingleJob[] Jobs { get; }
 
-    public bool IsValid => !string.IsNullOrEmpty(Master.InputFile) && !string.IsNullOrEmpty(Master.OutputFolder) && Jobs.Length > 0;
+    public bool IsValid => !string.IsNullOrEmpty(Master.OutputFolder) && Jobs.Length > 0;
 
     public CommandLine(string[] args)
     {
@@ -84,18 +85,27 @@ public sealed class CommandLine
             return;
         }
 
-        Master.InputFile = args[0];
-        var hasOutputFolder = args.Length > 1 && !args[1].StartsWith("-");
+        var inputFiles = new List<string>();
 
-        if (hasOutputFolder)
-            Master.OutputFolder = args[1];
-        else
-            Master.OutputFolder = Path.Combine(Path.GetDirectoryName(Master.InputFile) ?? Directory.GetCurrentDirectory(), "Splitter");
-        foreach (var arg in args.Skip(hasOutputFolder ? 2 : 1))
+        foreach (var arg in args)
         {
-            if (arg.StartsWith("--mask="))
+            if (!arg.StartsWith("-"))
+            {
+                inputFiles.Add(arg);
+            }
+            else if ( arg.StartsWith("--file="))
+            {
+                var fileName = arg.Substring("--file=".Length);
+                if (File.Exists(arg))
+                    LoadFile(fileName, inputFiles);
+            }
+            else if (arg.StartsWith("--mask="))
             {
                 Master.Mask = arg.Substring("--mask=".Length);
+            }
+            else if (arg.StartsWith("--out="))
+            {
+                Master.OutputFolder = arg.Substring("--out=".Length);
             }
             else if (arg.StartsWith("--detect="))
             {
@@ -169,7 +179,8 @@ public sealed class CommandLine
             }
         }
 
-        var files = FileMaskExpander.Expand(Master.InputFile);
+        var files = inputFiles.SelectMany(x => FileMaskExpander.Expand(x));
+
         Jobs = files.Select(x => new SingleJob
         {
             InputFile              = x,
@@ -188,6 +199,36 @@ public sealed class CommandLine
             Rotate                 = Master.Rotate,
             Parameters             = new Dictionary<string, string>(Master.Parameters)
         }).ToArray();
+
+        if ( Jobs.Length == 0)
+        {
+            Console.WriteLine("No valid input files found.");
+            PrintHelp();
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(Master.OutputFolder))
+        {
+            Console.WriteLine("No output folder specified.");
+            PrintHelp();
+            return;
+        }
+    }
+
+    private void LoadFile(string fileName, List<string> inputFiles)
+    {
+        if (!File.Exists(fileName))
+        {
+            Console.WriteLine($"File not found: {fileName}");
+            return;
+        }
+        var lines = File.ReadAllLines(fileName);
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (trimmed.Length > 0 && !trimmed.StartsWith("#"))
+                inputFiles.AddRange(FileMaskExpander.Expand(trimmed));
+        }
     }
 
     private static bool TryParseParameter(string spec, out string key, out string value)
@@ -286,12 +327,15 @@ public sealed class CommandLine
     {
         Console.WriteLine(@"
 Usage:
-  splitter <input.mp4> <output_folder> [options] [--] <ffmpeg passthrough>
+  splitter [<input.mp4> ...] [options] [--] <ffmpeg passthrough>
 
 Options:
+  --file=<path>          Input names or file masks (e.g. ""videos/*.mp4"").
+                         If not specified, the first non-option argument is used as input.
+
   --mask=<pattern>       Output filename pattern.
-                         Default: <OriginalName>_Seg%03d.mp4
-                         Supports %03d or %d for segment index.
+                         Default: [NAME]_seg[NN].[EXT]
+                         Supports [NAME], [N], [NN], [NNN], [NNNN], [EXT] placeholders.
 
   --duration=<value>     Override target segment duration.
                          Accepted formats:
@@ -350,12 +394,13 @@ Passthrough:
 input.mp4 can be a file mask, e.g. ""videos/*.mp4"". Output files will be named based on the input filename and the --mask pattern if provided.
 
 Examples:
-  splitter vertical-video.mp4 out/
-  splitter vertical-video.mp4 out/ --duration=90s
-  splitter vertical-video.mp4 out/ --duration=2m30s --mask=""Part%03d.mp4""
-  splitter vertical-video.mp4 out/ --estimate
-  splitter vertical-video.mp4 out/ --force --duration=45 -- -an -sn
-  splitter horizontal-video.mp4 out/ --crop
+  splitter vertical-video.mp4 --out=out/
+  splitter vertical-video.mp4 --duration=90s
+  splitter vertical-video.mp4 --duration=2m30s --mask=""[NAME]_[NNNN].mp4""
+  splitter vertical-video.mp4 --estimate
+  splitter vertical-video.mp4 --force --duration=45 -- -an -sn
+  splitter horizontal-video.mp4 --out=Cropped/ --crop
+  splitter --file=file_names.txt --out=Cropped/ --crop --detect=body
 
 Description:
   Splits a video into equal or fixed-length segments using multi-threaded
