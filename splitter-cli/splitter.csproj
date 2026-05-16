@@ -44,7 +44,7 @@
   </PropertyGroup>
 
   <Target Name="GenerateBuildInfo" BeforeTargets="BeforeCompile">
-    <ReadLinesFromFile File="BuildInfo.template">
+    <ReadLinesFromFile File="ThisAssembly.template">
       <Output TaskParameter="Lines" ItemName="BuildInfoLines" />
     </ReadLinesFromFile>
 
@@ -53,7 +53,7 @@
     </ItemGroup>
 
     <WriteLinesToFile
-        File="BuildInfo.g.cs"
+        File="ThisAssembly.g.cs"
         Overwrite="true"
         Lines="@(ProcessedBuildInfoLines)" />
   </Target>
