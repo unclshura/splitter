@@ -2,9 +2,9 @@ name: Build and Publish
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "master" ]
 
 jobs:
   build:
@@ -34,8 +34,20 @@ jobs:
         GITHUB_SHA: ${{ github.sha }}
       run: dotnet publish -c Release -r win-x64 --self-contained true --no-build
 
+    - name: Create ZIP
+      shell: pwsh
+      run: |
+        $publish = "bin/Release/net10.0/win-x64/publish"
+        $version = (Select-String -Path "$publish\*.deps.json" -Pattern '"version":').Line.Split('"')[3]
+        $zip = "splitter-win-x64-$version-${{ github.run_number }}.zip"
+
+        if (Test-Path $zip) { Remove-Item $zip }
+        Compress-Archive -Path "$publish/*" -DestinationPath $zip
+
+        Write-Host "Created $zip"
+
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: splitter-win-x64
-        path: bin/Release/net10.0/win-x64/publish/
+        path: splitter-win-x64-*.zip
