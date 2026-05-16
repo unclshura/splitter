@@ -1,0 +1,9 @@
+// Auto-generated. Do not edit.
+namespace splitter;
+
+internal static class ThisAssembly
+{
+    public const string Version = "@VERSION@";
+    public const string BuildNumber = "@BUILDNUMBER@";
+    public const string Commit = "@COMMIT@";
+}

@@ -363,4 +363,5 @@ MigrationBackup/
 FodyWeavers.xsd
 
 # OpenCV models
-models/*.*
+splitter-cli/models/*.*
+*.g.cs

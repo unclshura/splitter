@@ -1,0 +1,16 @@
+{
+  "profiles": {
+    "WSL": {
+      "commandName": "WSL2",
+      "distributionName": ""
+    },
+    "Prod": {
+      "commandName": "Project",
+      "commandLineArgs": "\"C:\\Users\\uncls\\Pictures\\2026\\2026 - Secret Rule\\20260426_212*.mp4\"  --crop --detect=body"
+    },
+    "Debug": {
+      "commandName": "Project",
+      "commandLineArgs": "\"C:\\Users\\uncls\\Pictures\\2026\\2026 - Secret Rule\\20260426_212004.mp4\" --crop --detect=body --debug --single-thread --text"
+    }
+  }
+}
