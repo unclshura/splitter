@@ -31,21 +31,9 @@ jobs:
     - name: Publish Release
       run: dotnet publish -c Release -r win-x64 --self-contained true --no-build /p:Version=${{ steps.version.outputs.version-without-v }} /p:BuildNumber=${{ github.run_number }} /p:SourceRevisionId=${{ github.sha }}
 
-
-    - name: Create ZIP
-      shell: pwsh
-      run: |
-        $publish = "splitter-cli/bin/Release/net10.0/win-x64/publish"
-        $version = ${{ steps.version.outputs.version-without-v }}
-        $zip = "splitter-win-x64-$version-${{ github.run_number }}.zip"
-
-        if (Test-Path $zip) { Remove-Item $zip }
-        Compress-Archive -Path "$publish/*" -DestinationPath $zip
-
-        Write-Host "Created $zip"
-
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: splitter-win-x64
-        path: splitter-win-x64-*.zip
+        name: splitter-win-x64-${{ steps.version.outputs.version-without-v }}
+        path: splitter-cli/bin/Release/net10.0/win-x64/publish/**
+
