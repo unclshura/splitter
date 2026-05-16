@@ -29,7 +29,7 @@ jobs:
       uses: battila7/get-version-action@v2
 
     - name: Publish Release
-      run: dotnet publish -c Release -r win-x64 --self-contained true /p:Version=${{ steps.version.outputs.version-without-v }} /p:BuildNumber=${{ github.run_number }} /p:SourceRevisionId=${{ github.sha }}
+      run: dotnet publish splitter-cli/splitter.csproj -c Release -r win-x64 /p:Version=${{ steps.version.outputs.version-without-v }} /p:BuildNumber=${{ github.run_number }} /p:SourceRevisionId=${{ github.sha }}
 
     - name: Create ZIP
       shell: pwsh
