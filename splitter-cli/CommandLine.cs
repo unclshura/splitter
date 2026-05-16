@@ -330,7 +330,7 @@ public sealed class CommandLine
 
     public static void PrintVersion()
     {
-        Console.WriteLine($"...---=== splitter version {BuildInfo.Version} (commit {BuildInfo.Commit}, build {BuildInfo.BuildNumber}) ===---...");
+        Console.WriteLine($"...---=== splitter version {BuildInfo.Version} (file version: {BuildInfo.FileVersion}, build {BuildInfo.AssemblyVersion}) ===---...");
     }
 
     public static void PrintHelp()

@@ -34,32 +34,14 @@
     <PublishReadyToRun>false</PublishReadyToRun>
   </PropertyGroup>
 
-  <Target Name="GenerateBuildInfo" BeforeTargets="PrepareForBuild">
-    <Message Text="=== GENERATE BUILD INFO ===" Importance="High" />
-    <Message Text="Version: $(Version)" Importance="High" />
-    <Message Text="BuildNumber: $(BuildNumber)" Importance="High" />
-    <Message Text="Commit: $(SourceRevisionId)" Importance="High" />
+  <PropertyGroup>
+    <Version>1.0.0</Version>
+    <InformationalVersion>$(Version).$(BuildNumber)+$(SourceRevisionId)</InformationalVersion>
+    <AssemblyVersion>$(Version)</AssemblyVersion>
+    <FileVersion>$(Version).$(BuildNumber)</FileVersion>
+  </PropertyGroup>
 
-    <ReadLinesFromFile File="$(MSBuildProjectDirectory)\ThisAssembly.template">
-      <Output TaskParameter="Lines" ItemName="BuildInfoLines" />
-    </ReadLinesFromFile>
-
-    <ItemGroup>
-      <ProcessedBuildInfoLines Include="@(BuildInfoLines->Replace('@VERSION@', '$(Version)')->Replace('@BUILDNUMBER@', '$(BuildNumber)')->Replace('@COMMIT@', '$(SourceRevisionId)'))" />
-    </ItemGroup>
-
-    <Message Text="Template: @(BuildInfoLines)" Importance="High" />
-    <Message Text="Processed: @(ProcessedBuildInfoLines)" Importance="High" />
-
-    <WriteLinesToFile
-        File="$(MSBuildProjectDirectory)\ThisAssembly.g.cs"
-        Overwrite="true"
-        Lines="@(ProcessedBuildInfoLines)" />
-  </Target>
-
-
-
-  <Target Name="RemoveUnwantedFiles" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release'">
+    <Target Name="RemoveUnwantedFiles" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release'">
     <ItemGroup>
       <FilesToDelete Include="$(PublishDir)**\*.pdb" />
       <FilesToDelete Include="$(PublishDir)**\*.lib" />

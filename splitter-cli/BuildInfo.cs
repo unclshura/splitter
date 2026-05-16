@@ -1,8 +1,12 @@
-﻿namespace splitter;
+﻿using System.Reflection;
+
+namespace splitter;
 
 public static class BuildInfo
 {
-    public static string Version     { get; } = ThisAssembly.Version;
-    public static string BuildNumber { get; } = ThisAssembly.BuildNumber;
-    public static string Commit      { get; } = ThisAssembly.Commit;
+    private static readonly Assembly Assembly = typeof(BuildInfo).Assembly;
+
+    public static string Version         => Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
+    public static string FileVersion     => Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version ?? "unknown";
+    public static string AssemblyVersion => Assembly.GetName().Version?.ToString() ?? "unknown";
 }
