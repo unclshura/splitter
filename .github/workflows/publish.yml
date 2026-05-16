@@ -26,7 +26,7 @@ jobs:
       uses: battila7/get-version-action@v2
 
     - name: Build Release
-      run: dotnet build -c Release --no-restore -r win-x64 /p:Version=${{ steps.version.outputs.version-without-v }} /p:BuildNumber=${{ github.run_number }} /p:SourceRevisionId=${{ github.sha }}
+      run: dotnet build -c Release --no-restore /p:Version=${{ steps.version.outputs.version-without-v }} /p:BuildNumber=${{ github.run_number }} /p:SourceRevisionId=${{ github.sha }}
 
     - name: Publish Release
       run: dotnet publish -c Release -r win-x64 --self-contained true --no-build /p:Version=${{ steps.version.outputs.version-without-v }} /p:BuildNumber=${{ github.run_number }} /p:SourceRevisionId=${{ github.sha }}
