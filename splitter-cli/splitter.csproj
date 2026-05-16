@@ -43,7 +43,7 @@
     <BuildNumber>$(GITHUB_RUN_NUMBER)</BuildNumber>
   </PropertyGroup>
 
-  <Target Name="GenerateBuildInfo" BeforeTargets="BeforeCompile">
+  <Target Name="GenerateBuildInfo" BeforeTargets="CoreCompile">
     <ReadLinesFromFile File="ThisAssembly.template">
       <Output TaskParameter="Lines" ItemName="BuildInfoLines" />
     </ReadLinesFromFile>
