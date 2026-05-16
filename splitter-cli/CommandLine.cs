@@ -211,6 +211,8 @@ public sealed class CommandLine
         {
             var firstInput = Jobs[0].InputFile;
             Master.OutputFolder = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(firstInput))!, "Splitter");
+            foreach (var job in Jobs)
+                job.OutputFolder = Master.OutputFolder;
             Console.WriteLine($"Using default output folder: {Master.OutputFolder}");
         }
     }
