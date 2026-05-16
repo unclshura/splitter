@@ -35,7 +35,7 @@ jobs:
     - name: Create ZIP
       shell: pwsh
       run: |
-        $publish = "bin/Release/net10.0/win-x64/publish"
+        $publish = "splitter-cli/bin/Release/net10.0/win-x64/publish"
         $version = ${{ steps.version.outputs.version-without-v }}
         $zip = "splitter-win-x64-$version-${{ github.run_number }}.zip"
 
