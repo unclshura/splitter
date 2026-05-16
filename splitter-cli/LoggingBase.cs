@@ -1,5 +1,4 @@
-﻿using System;
-namespace splitter;
+﻿namespace splitter;
 
 public abstract class LoggingBase(ILogger _logger, int _progressLine)
 {

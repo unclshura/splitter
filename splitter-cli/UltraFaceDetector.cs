@@ -1,5 +1,4 @@
 ﻿using System.Runtime.InteropServices;
-using NcnnDotNet.Layers;
 using OpenCvSharp;
 using UltraFaceDotNet;
 
@@ -25,7 +24,7 @@ public sealed class UltraFaceDetector: LoggingBase, IDisposable, IObjectDetector
         _ultraFace = UltraFace.Create(param);
     }
 
-    public List<(Rect box, Point2f center)> DetectAll(Mat frameCont, int width, int height)
+    public List<(Rect box, Point2f center)> DetectAll(Mat frameCont)
     {
         // Convert to byte[] for UltraFace
         var bytesFull = frameCont.Rows * frameCont.Cols * frameCont.ElemSize();
@@ -44,8 +43,8 @@ public sealed class UltraFaceDetector: LoggingBase, IDisposable, IObjectDetector
                 using var mat = NcnnDotNet.Mat.FromPixels(
                 (IntPtr)p,
                 NcnnDotNet.PixelType.Bgr,     // BGR24 input
-                width,
-                height);
+                frameCont.Width,
+                frameCont.Height);
 
                 var faces = _ultraFace.Detect(mat);
                 if (faces == null)

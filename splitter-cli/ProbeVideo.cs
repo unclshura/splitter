@@ -1,8 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Globalization;
-using System.Text;
 
 namespace splitter;
 
@@ -11,12 +8,31 @@ public record VideoInfo(
     int Width,
     int Height,
     double Fps,
-    double Bitrate
+    double Bitrate,
+    int Rotation = 0
 );
 
 public static class ProbeVideo
 {
-    public static VideoInfo Probe(string inputFile)
+    public static async Task<VideoInfo> Probe(SingleJob job)
+    {
+        var info = ProbeSize(job.InputFile);
+        if ( job.RotateAuto)
+        {
+            var rotation = await ProbeRotation(job, info.Duration);
+            info = info with { Rotation = rotation };
+        }
+
+        return info;
+    }
+
+    private static async Task<int> ProbeRotation(SingleJob job, double duration)
+    {
+        var rotation = await new VideoRotationSampler(job).DetectRotationAsync(job.InputFile, duration);
+        return rotation;
+    }
+
+    private static VideoInfo ProbeSize(string inputFile)
     {
         var args =
         "-v error " +

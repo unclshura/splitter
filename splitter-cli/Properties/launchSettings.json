@@ -10,7 +10,7 @@
     },
     "Debug": {
       "commandName": "Project",
-      "commandLineArgs": "\"C:\\Users\\uncls\\Pictures\\2026\\2026 - Secret Rule\\20260426_212004.mp4\" --crop --detect=body --debug --single-thread --text"
+      "commandLineArgs": "\"C:\\Users\\uncls\\Pictures\\2026\\2026 - Laura Cox\\Video\\MAH00041.MP4\" --rotate-auto"
     }
   }
 }

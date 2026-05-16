@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Numerics;
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using OpenCvSharp;
@@ -83,7 +79,7 @@ public sealed class YoloOnnxObjectDetector : LoggingBase, IObjectDetector, IDisp
         _inputs.Add(NamedOnnxValue.CreateFromTensor(_inputName, _inputTensor));
     }
 
-    public List<(Rect box, Point2f center)> DetectAll(Mat frameCont, int width, int height)
+    public List<(Rect box, Point2f center)> DetectAll(Mat frameCont)
     {
         if (frameCont.Empty())
         {

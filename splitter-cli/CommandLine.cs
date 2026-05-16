@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.Text;
-using OpenCvSharp;
+﻿using System.Globalization;
 
 namespace splitter;
 
@@ -22,6 +18,7 @@ public class SingleJob
     public bool                       ForceFixed             { get; set; }
     public bool                       SingleThreaded         { get; set; }
     public int?                       Rotate                 { get; set; }
+    public bool                       RotateAuto             { get; set; }
     public Dictionary<string, string> Parameters             { get; set; } = [];
 
     public void Override<T>(ref T member, string name)
@@ -143,6 +140,10 @@ public sealed class CommandLine
             {
                 Master.SingleThreaded = true;
             }
+            else if (arg == "--rotate-auto")
+            {
+                Master.RotateAuto = true;
+            }
             else if (arg.StartsWith("--gravitate="))
             {
                 var val = arg.Substring("--gravitate=".Length);
@@ -197,6 +198,7 @@ public sealed class CommandLine
             ForceFixed             = Master.ForceFixed,
             SingleThreaded         = Master.SingleThreaded,
             Rotate                 = Master.Rotate,
+            RotateAuto             = Master.RotateAuto,
             Parameters             = new Dictionary<string, string>(Master.Parameters)
         }).ToArray();
 
@@ -371,6 +373,9 @@ Options:
   --rotate=<degrees>     Rotate video by specified degrees (90, 180, 270).
                          Useful for videos with incorrect orientation metadata.
 
+  --rotate-auto          Auto-detect rotation and rotate accordingly.
+                         Uses edge orientation statistics to determine if video is rotated.
+
   --estimate             Print calculated segment information and exit.
                          No splitting is performed.
 
@@ -393,13 +398,19 @@ Options:
   --debug                Show debug overlay during face tracking.
 
   -p:<name>=<value>      Set a custom parameter for the object detector.
-                         Example: -p:confidence=0.5
+                         Example: -p:EmaFactor=0.65
 
                          Tracking splitter defaults:
                             DropoutToleranceFrames = 20;
                             EmaFactor              = 0.65;
                             CameraEasing           = 0.03;
                             LostFreezeFrames       = 60;   
+
+                         Rotation detector defaults:
+                            RotationDetectorSampleCount  = 5;
+                            RotationDetectorSampleLength = 0.15; 
+                            RotationDetectorFrameWidth   = 320;
+                            RotationDetectorFrameHeight  = 180;
 
 Passthrough:
   Anything after -- is passed directly to ffmpeg.

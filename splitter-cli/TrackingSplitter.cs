@@ -1,9 +1,6 @@
-﻿using System;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Globalization;
-using System.IO;
 using System.Runtime.InteropServices;
-using System.Threading.Tasks;
 using OpenCvSharp;
 
 namespace splitter;
@@ -112,7 +109,7 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
             // input frame → Mat
             Marshal.Copy(inBuffer, 0, frameMat.Data, inBytes);
 
-            var objects = _detector.DetectAll(frameMat, videoWidth, videoHeight);
+            var objects = _detector.DetectAll(frameMat);
             var primary = SelectTrackedObject(objects, kalman.LastMeasurement);
 
             camera.Update(primary);
