@@ -34,15 +34,6 @@
     <PublishReadyToRun>false</PublishReadyToRun>
   </PropertyGroup>
 
-  <PropertyGroup>
-    <Version>1.0.0</Version>
-    <SourceRevisionId>$(GITHUB_SHA)</SourceRevisionId>
-  </PropertyGroup>
-
-  <PropertyGroup>
-    <BuildNumber>$(GITHUB_RUN_NUMBER)</BuildNumber>
-  </PropertyGroup>
-
   <Target Name="GenerateBuildInfo" BeforeTargets="PrepareForBuild">
     <Message Text="=== GENERATE BUILD INFO ===" Importance="High" />
     <Message Text="Version: $(Version)" Importance="High" />
@@ -79,6 +70,8 @@
 
 
   <ItemGroup>
+    <Compile Update="ThisAssembly.g.cs" />
+
     <Content Include="models/*.*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
