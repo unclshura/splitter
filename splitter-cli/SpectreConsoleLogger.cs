@@ -173,7 +173,7 @@ public sealed class SpectreConsoleLogger : ILogger, IDisposable
 
         var layout = new Layout("root")
             .SplitRows(
-                new Layout("progress") { Size = Math.Max(3, numberOfProcessesSnapshot + 2) },
+                new Layout("progress") { Size = Math.Max(3, numberOfProcessesSnapshot + 4) },
                 new Layout("log")
                 //new Layout("buttons") { Size = 3 }
             );
@@ -228,8 +228,8 @@ public sealed class SpectreConsoleLogger : ILogger, IDisposable
         foreach (var log in slice)
         {
             var time = log.Timestamp.ToString("HH:mm:ss");
-            var timeColor = "deepskyblue1";          // dark-ish blue
-            var prefixColor = "lightpink1";          // light magenta
+            var timeColor = "deepskyblue1";
+            var prefixColor = "lightpink1";
             var msgColor = MapConsoleColor(log.Color);
 
             var line =
@@ -240,38 +240,10 @@ public sealed class SpectreConsoleLogger : ILogger, IDisposable
             rows.Add(new Markup(line));
         }
 
-        IRenderable content =
-        rows.Count == 0
-            ? new Markup("[grey]No log messages yet.[/]")
-            : new Rows(rows);
+        if (rows.Count == 0)
+            return new Markup("[grey]No log messages yet.[/]");
 
-        var panel = new Panel(content)
-        {
-            Header = new PanelHeader("Log", Justify.Left),
-            Border = BoxBorder.Rounded,
-            Expand = true
-        };
-
-        return panel;
-    }
-
-
-    private static IRenderable BuildButtonsPanel()
-    {
-        // Visual [ Cancel ] button; key handling is in RunInputLoopAsync
-        var text = new Markup("[bold white on red] Cancel [/]");
-        var grid = new Grid();
-        grid.AddColumn(new GridColumn().Centered());
-        grid.AddRow(text);
-
-        var panel = new Panel(grid)
-        {
-            Border = BoxBorder.Rounded,
-            Header = new PanelHeader("Actions", Justify.Left),
-            Expand = true
-        };
-
-        return panel;
+        return new Rows(rows);
     }
 
     // ---- Helpers ----
@@ -282,23 +254,23 @@ public sealed class SpectreConsoleLogger : ILogger, IDisposable
     private static string MapConsoleColor(ConsoleColor color) =>
         color switch
         {
-            ConsoleColor.Black => "black",
-            ConsoleColor.DarkBlue => "navy",
-            ConsoleColor.DarkGreen => "green",
-            ConsoleColor.DarkCyan => "teal",
-            ConsoleColor.DarkRed => "maroon",
+            ConsoleColor.Black       => "black",
+            ConsoleColor.DarkBlue    => "navy",
+            ConsoleColor.DarkGreen   => "green",
+            ConsoleColor.DarkCyan    => "teal",
+            ConsoleColor.DarkRed     => "maroon",
             ConsoleColor.DarkMagenta => "purple",
-            ConsoleColor.DarkYellow => "olive",
-            ConsoleColor.Gray => "silver",
-            ConsoleColor.DarkGray => "grey",
-            ConsoleColor.Blue => "blue",
-            ConsoleColor.Green => "lime",
-            ConsoleColor.Cyan => "aqua",
-            ConsoleColor.Red => "red",
-            ConsoleColor.Magenta => "fuchsia",
-            ConsoleColor.Yellow => "yellow",
-            ConsoleColor.White => "white",
-            _ => "white"
+            ConsoleColor.DarkYellow  => "olive",
+            ConsoleColor.Gray        => "silver",
+            ConsoleColor.DarkGray    => "grey",
+            ConsoleColor.Blue        => "blue",
+            ConsoleColor.Green       => "lime",
+            ConsoleColor.Cyan        => "aqua",
+            ConsoleColor.Red         => "red",
+            ConsoleColor.Magenta     => "fuchsia",
+            ConsoleColor.Yellow      => "yellow",
+            ConsoleColor.White       => "white",
+            _                        => "white"
         };
 
     /// <summary>
