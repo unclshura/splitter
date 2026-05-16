@@ -44,7 +44,12 @@
   </PropertyGroup>
 
   <Target Name="GenerateBuildInfo" BeforeTargets="PrepareForBuild">
-    <ReadLinesFromFile File="ThisAssembly.template">
+    <Message Text="=== GENERATE BUILD INFO ===" Importance="High" />
+    <Message Text="Version: $(Version)" Importance="High" />
+    <Message Text="BuildNumber: $(BuildNumber)" Importance="High" />
+    <Message Text="Commit: $(SourceRevisionId)" Importance="High" />
+
+    <ReadLinesFromFile File="$(MSBuildProjectDirectory)\ThisAssembly.template">
       <Output TaskParameter="Lines" ItemName="BuildInfoLines" />
     </ReadLinesFromFile>
 
@@ -52,8 +57,11 @@
       <ProcessedBuildInfoLines Include="@(BuildInfoLines->Replace('@VERSION@', '$(Version)')->Replace('@BUILDNUMBER@', '$(BuildNumber)')->Replace('@COMMIT@', '$(SourceRevisionId)'))" />
     </ItemGroup>
 
+    <Message Text="Template: @(BuildInfoLines)" Importance="High" />
+    <Message Text="Processed: @(ProcessedBuildInfoLines)" Importance="High" />
+
     <WriteLinesToFile
-        File="ThisAssembly.g.cs"
+        File="$(MSBuildProjectDirectory)\ThisAssembly.g.cs"
         Overwrite="true"
         Lines="@(ProcessedBuildInfoLines)" />
   </Target>
