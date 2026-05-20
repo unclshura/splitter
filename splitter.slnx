@@ -6,4 +6,5 @@
     <File Path="README.md" />
   </Folder>
   <Project Path="splitter-cli/splitter.csproj" />
+  <Project Path="Splitter-UI/Splitter-UI.csproj" Id="f80bfed3-d5f0-4292-92b2-909c21625ee3" />
 </Solution>

@@ -1,0 +1,41 @@
+<Window
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:views="clr-namespace:Splitter_UI.Views"
+    xmlns:vm="clr-namespace:Splitter_UI.ViewModels"
+    x:Class="Splitter_UI.Views.MainWindow"
+    x:DataType="vm:MainViewModel"
+    Width="1400"
+    Height="900"
+    Title="Splitter UI">
+
+    <DockPanel>
+
+        <!-- Status Bar -->
+        <views:StatusBarView DockPanel.Dock="Bottom"
+                             DataContext="{Binding StatusBar}" />
+
+        <!-- Log Pane -->
+        <views:LogPane DockPanel.Dock="Bottom" Height="150"
+                       DataContext="{Binding LogPane}" />
+
+        <!-- Main Content -->
+        <Grid ColumnDefinitions="2*,3*,2*">
+
+            <!-- File List -->
+            <views:FileListView Grid.Column="0"
+                                DataContext="{Binding FileList}" />
+
+            <!-- Preview -->
+            <views:PreviewPane Grid.Column="1"
+                               DataContext="{Binding Preview}" />
+
+            <!-- Inspector -->
+            <views:InspectorPane Grid.Column="2"
+                                 DataContext="{Binding Inspector}" />
+
+        </Grid>
+
+    </DockPanel>
+</Window>
+

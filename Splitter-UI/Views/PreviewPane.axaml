@@ -1,0 +1,24 @@
+<UserControl
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    x:Class="Splitter_UI.Views.PreviewPane"
+    xmlns:vm="clr-namespace:Splitter_UI.ViewModels"
+    x:DataType="vm:PreviewPaneViewModel">
+
+    <Border Background="#202020" Padding="10">
+        <Grid>
+            <Image Source="{Binding Selected.Preview.Frame}" Stretch="Uniform"/>
+
+            <!-- Optional overlays -->
+            <ItemsControl ItemsSource="{Binding Selected.Preview.FaceBoxes}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border BorderBrush="Lime" BorderThickness="2"
+                                Width="{Binding Width}" Height="{Binding Height}"
+                                Canvas.Left="{Binding X}" Canvas.Top="{Binding Y}"/>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Grid>
+    </Border>
+</UserControl>

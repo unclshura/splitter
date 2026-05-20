@@ -1,0 +1,24 @@
+<UserControl
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    x:Class="Splitter_UI.Views.StatusBarView"
+    xmlns:vm="clr-namespace:Splitter_UI.ViewModels"
+    x:DataType="vm:StatusBarViewModel">
+
+    <Border Padding="4" Background="{DynamicResource ThemeBackgroundBrush}">
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+            <TextBlock Grid.Column="0"
+                       VerticalAlignment="Center"
+                       Text="{Binding StatusText}" />
+
+            <ProgressBar Grid.Column="1"
+                         Width="200" Height="16"
+                         VerticalAlignment="Center"
+                         Value="{Binding Percent}" />
+
+            <TextBlock Grid.Column="2"
+                       VerticalAlignment="Center"
+                       Text="{Binding ThreadInfo}" />
+        </Grid>
+    </Border>
+</UserControl>
