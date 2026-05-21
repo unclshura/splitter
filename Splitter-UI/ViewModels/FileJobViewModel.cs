@@ -35,7 +35,8 @@ public partial class FileJobViewModel : ObservableObject
 
     private async Task LoadThumbnailAsync()
     {
-        Probe     = await _fileProbe.ProbeAsync(Job);
-        Thumbnail = await _thumbnails.CreateThumbnailAsync(Job.InputFile, Probe);
+        Probe           = await _fileProbe.ProbeAsync(Job);
+        Thumbnail       = await _thumbnails.CreateThumbnailAsync(Job.InputFile, Probe);
+        SuggestedAction = Probe.Rotation == 0 ? "crop" : "rotate";
     }
 }

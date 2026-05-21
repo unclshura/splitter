@@ -1,4 +1,5 @@
 ﻿using Avalonia;
+using Avalonia.Media;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Splitter_UI;
@@ -46,6 +47,14 @@ internal sealed class Program
     public static AppBuilder BuildAvaloniaApp(ServiceProvider provider)
         => AppBuilder.Configure<App>(() => new App(provider))
             .UsePlatformDetect()
+            .With(new FontManagerOptions
+            {
+                FontFallbacks = new[]
+                {
+                    new FontFallback { FontFamily = new FontFamily("Font Awesome 7 Free") },
+                    new FontFallback { FontFamily = new FontFamily("Font Awesome 7 Free Solid") }
+                }
+            })
 #if DEBUG
             .WithDeveloperTools()
 #endif

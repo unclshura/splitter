@@ -3,6 +3,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:vm="clr-namespace:Splitter_UI.ViewModels"
     xmlns:views="clr-namespace:Splitter_UI.Views"
+    xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia"
     x:Class="Splitter_UI.Views.FileListView"
     x:DataType="vm:FileListViewModel">
 
@@ -39,21 +40,30 @@
                     <DataTemplate x:DataType="vm:FileJobViewModel">
                         <Border Margin="6" Padding="6" Background="#2A2A2A" CornerRadius="4">
                             <StackPanel MinWidth="160" MaxWidth="160">
-                                <Border Width="160" Height="90" ClipToBounds="True">
-                                    <Image Source="{Binding Thumbnail}"
-                                           Stretch="UniformToFill"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"/>
-                                </Border>
 
+                                <Border Width="160" Height="90" ClipToBounds="True">
+                                    <Grid>
+                                        <!-- Thumbnail -->
+                                        <Image Source="{Binding Thumbnail}"
+                                               Stretch="UniformToFill"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
+
+                                        <!-- Suggested action decal -->
+                                        <TextBlock
+                                            FontFamily="{StaticResource FontAwesome}"
+                                            Text="{Binding SuggestedAction, Converter={StaticResource ActionToIconConverter}}"
+                                            FontSize="12"
+                                            HorizontalAlignment="Right"
+                                            Foreground="LimeGreen"/>
+                                    </Grid>
+                                </Border>
+    
                                 <TextBlock Text="{Binding FileName}"
                                            TextWrapping="Wrap"
                                            Margin="0,6,0,0"
                                            FontSize="10"/>
 
-                                <TextBlock Text="{Binding SuggestedAction}"
-                                           Foreground="LightGreen"
-                                           FontSize="10"/>
 
                                 <ProgressBar
                                     MinWidth="160"
