@@ -8,6 +8,7 @@ public partial class FileListViewModel : ObservableObject
 {
     private readonly IFileJobFactory _factory;
     public ObservableCollection<FileJobViewModel> Files { get; } = [];
+    public ObservableCollection<FileJobViewModel> SelectedFiles { get; } = [];
 
     [ObservableProperty]
     private FileJobViewModel? _selected;
