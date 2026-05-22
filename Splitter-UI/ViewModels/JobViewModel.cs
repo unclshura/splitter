@@ -2,7 +2,9 @@
 using System.Collections.Specialized;
 using System.ComponentModel;
 using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace Splitter_UI.ViewModels;
 
@@ -10,7 +12,8 @@ public partial class JobViewModel : ObservableObject
 {
     public SingleJob   Job        { get; }
     public VideoInfo?   Probe     { get; set; }
-    public PreviewData? Preview   { get; set; }
+    [ObservableProperty]
+    private PreviewData? _preview = new(null, [], null);
     public ProgressInfo? Progress { get; set; }
     
     [ObservableProperty]
@@ -19,8 +22,22 @@ public partial class JobViewModel : ObservableObject
     [ObservableProperty]
     private string _suggestedAction = "";
 
+    // This updates continuously
+    [ObservableProperty]
+    private double _sliderLiveValue;
+
+    // This updates only on release
+    [ObservableProperty]
+    private double _positionSeconds;
+
+    public double DurationSeconds => Probe?.Duration ?? 0;
+
+    public IRelayCommand StepForwardCommand { get; }
+    public IRelayCommand StepBackwardCommand { get; }
+
     private readonly IThumbnailService _thumbnails;
     private readonly IFileProbeService _fileProbe;
+    private readonly DispatcherTimer _debounceTimer;
 
     public string FileName => Path.GetFileName(Job.InputFile);
 
@@ -113,6 +130,14 @@ public partial class JobViewModel : ObservableObject
 
         ParametersList.CollectionChanged += OnParametersCollectionChanged;
 
+        StepForwardCommand = new RelayCommand(StepForward);
+        StepBackwardCommand = new RelayCommand(StepBackward);
+
+        _debounceTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(1)
+        };
+        _debounceTimer.Tick += DebounceTimerTick;
 
         _ = Task.Run( LoadThumbnailAsync );
     }
@@ -122,6 +147,23 @@ public partial class JobViewModel : ObservableObject
         Probe           = await _fileProbe.ProbeAsync(Job);
         Thumbnail       = await _thumbnails.CreateThumbnailAsync(Job.InputFile, Probe);
         SuggestedAction = Probe.Rotation == 0 ? "crop" : "rotate";
+
+        await CreatePreview();
+    }
+
+    private async Task CreatePreview()
+    {
+        if ( Probe == null)
+            return;
+        try
+        {
+            var frame = await _thumbnails.CreateThumbnailAsync(Job.InputFile, Probe, TimeSpan.FromSeconds(PositionSeconds), Probe.Width, Probe.Height);
+            Preview = new PreviewData(frame, [], null);
+            OnPropertyChanged(nameof(Preview));
+        }
+        catch (Exception ex)
+        {
+        }
     }
 
     private void OnParameterChanged(object? sender, PropertyChangedEventArgs e)
@@ -153,4 +195,43 @@ public partial class JobViewModel : ObservableObject
         }
     }
 
+    private void StepForward()
+    {
+        var step = 10.0; // seconds
+        if (DurationSeconds <= 0)
+            return;
+
+        PositionSeconds = Math.Min(DurationSeconds, PositionSeconds + step);
+        // trigger seek in your playback pipeline here
+    }
+
+    private void StepBackward()
+    {
+        var step = 10.0; // seconds
+        if (DurationSeconds <= 0)
+            return;
+
+        PositionSeconds = Math.Max(0, PositionSeconds - step);
+        // trigger seek in your playback pipeline here
+    }
+
+    partial void OnSliderLiveValueChanged(double value)
+    {
+        // Restart debounce timer on every slider update
+        _debounceTimer.Stop();
+        _debounceTimer.Start();
+    }
+
+    private void DebounceTimerTick(object? sender, EventArgs e)
+    {
+        _debounceTimer.Stop();
+
+        // Commit the final value
+        PositionSeconds = SliderLiveValue;
+    }
+
+    partial void OnPositionSecondsChanged(double value)
+    {
+        Task.Run(CreatePreview);
+    }
 }

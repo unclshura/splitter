@@ -1,24 +1,57 @@
 <UserControl
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    x:Class="Splitter_UI.Views.PreviewPane"
     xmlns:vm="clr-namespace:Splitter_UI.ViewModels"
+    xmlns:local="clr-namespace:Splitter_UI.Views"
+    x:Class="Splitter_UI.Views.PreviewPane"
     x:DataType="vm:PreviewPaneViewModel">
 
     <Border Background="#202020" Padding="10">
-        <Grid>
-            <Image Source="{Binding Selected.Preview.Frame}" Stretch="Uniform"/>
+        <Grid RowDefinitions="*,Auto">
 
-            <!-- Optional overlays -->
-            <ItemsControl ItemsSource="{Binding Selected.Preview.FaceBoxes}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Border BorderBrush="Lime" BorderThickness="2"
-                                Width="{Binding Width}" Height="{Binding Height}"
-                                Canvas.Left="{Binding X}" Canvas.Top="{Binding Y}"/>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <local:PreviewCanvas
+                Grid.Row="0"
+                Preview="{Binding Preview}" />
+
+            <Grid Grid.Row="1"
+                  ColumnDefinitions="Auto,*,Auto"
+                  Margin="0,10,0,0">
+
+                <Button Grid.Column="0"
+                        HorizontalAlignment="Left"
+                        Width="24" Height="24"
+                        Padding="0"
+                        Margin="0,0,5,0"
+                        Command="{Binding Selected.StepBackwardCommand}">
+                    <TextBlock FontFamily="{StaticResource FontAwesome}"
+                               Text="&#xf048;"
+                               FontSize="12"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center" />
+                </Button>
+
+                <Slider Grid.Column="1"
+                        Minimum="0"
+                        Maximum="{Binding Selected.DurationSeconds}"
+                        Value="{Binding Selected.SliderLiveValue, Mode=TwoWay}"
+                        Margin="5,0,5,0" />
+
+                <Button Grid.Column="2"
+                        HorizontalAlignment="Right"
+                        Width="24" Height="24"
+                        Padding="0"
+                        Margin="5,0,0,0"
+                        Command="{Binding Selected.StepForwardCommand}">
+                    <TextBlock FontFamily="{StaticResource FontAwesome}"
+                               Text="&#xf051;"
+                               FontSize="12"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center" />
+                </Button>
+
+            </Grid>
+
         </Grid>
     </Border>
 </UserControl>
+

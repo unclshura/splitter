@@ -7,41 +7,47 @@ namespace Splitter_UI.Services;
 
 public sealed class ThumbnailService : IThumbnailService
 {
-    private readonly int _thumbWidth  = 160;
-    private readonly int _thumbHeight = 90;
+    private const int _thumbWidth  = 160;
+    private const int _thumbHeight = 90;
 
-    // Reusable buffer for BGR24 → 3 bytes per pixel
-    private readonly byte[] _bgrBuffer;
-    private readonly byte[] _bgraBuffer;
+    private readonly byte [] _bgrBuffer  = new byte[_thumbWidth * _thumbHeight * 3];
+    private readonly byte [] _bgraBuffer = new byte[_thumbWidth * _thumbHeight * 4];
 
-    public ThumbnailService()
+    public async Task<Bitmap?> CreateThumbnailAsync(string file, VideoInfo probe, TimeSpan? skip = null, int? width = null, int? height = null)
     {
-        _bgrBuffer = new byte[_thumbWidth * _thumbHeight * 3];
-        _bgraBuffer = new byte[_thumbWidth * _thumbHeight * 4];
-    }
+        width  ??= _thumbWidth;
+        height ??= _thumbHeight;
+        skip   ??= TimeSpan.Zero;
 
-    public async Task<Bitmap?> CreateThumbnailAsync(string file, VideoInfo probe)
-    {
+        // buffer for BGR24 → 3 bytes per pixel
+
+        var canUseStaticBuffers =
+            width.Value == _thumbWidth &&
+            height.Value == _thumbHeight;
+
+        var bgrBuffer  = canUseStaticBuffers ? _bgrBuffer  : new byte[width.Value * height.Value * 3];
+        var bgraBuffer = canUseStaticBuffers ? _bgraBuffer : new byte[width.Value * height.Value * 4];
+
         // Decode a single frame using ffmpeg → raw BGR24 into _bgrBuffer
-        bool ok = await DecodeFrameAsync(file);
+        bool ok = await DecodeFrameAsync(bgrBuffer, file, skip.Value, width.Value, height.Value);
         if (!ok)
             return null;
 
         // Convert BGR24 → BGRA32
-        ConvertBgrToBgra(_bgrBuffer, _bgraBuffer, _thumbWidth, _thumbHeight);
+        ConvertBgrToBgra(bgrBuffer, bgraBuffer, width.Value, height.Value);
 
         // Create Avalonia Bitmap
-        return CreateBitmap(_bgraBuffer, _thumbWidth, _thumbHeight);
+        return CreateBitmap(bgraBuffer, width.Value, height.Value);
     }
 
-    private async Task<bool> DecodeFrameAsync(string file)
+    private static async Task<bool> DecodeFrameAsync(byte [] bgrBuffer, string file, TimeSpan skip, int width, int height)
     {
         // ffmpeg command: decode one frame, resize, output raw BGR24
         var args =
-            $"-ss 0 -t 0.1 -i \"{file}\" " +
+            $"-ss {skip.TotalSeconds} -t 0.1 -i \"{file}\" " +
             "-an -sn " +
-            $"-vf \"scale={_thumbWidth}:{_thumbHeight}:force_original_aspect_ratio=decrease," +
-            $"pad={_thumbWidth}:{_thumbHeight}:(ow-iw)/2:(oh-ih)/2,format=bgr24\" " +
+            $"-vf \"scale={width}:{height}:force_original_aspect_ratio=decrease," +
+            $"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,format=bgr24\" " +
             "-f rawvideo -";
 
         var psi = new ProcessStartInfo
@@ -57,14 +63,14 @@ public sealed class ThumbnailService : IThumbnailService
         var p = new Process { StartInfo = psi };
         p.Start();
 
-        int needed = _bgrBuffer.Length;
+        int needed = bgrBuffer.Length;
         int read = 0;
 
         using var stdout = p.StandardOutput.BaseStream;
 
         while (read < needed)
         {
-            int r = await stdout.ReadAsync(_bgrBuffer, read, needed - read);
+            int r = await stdout.ReadAsync(bgrBuffer, read, needed - read);
             if (r == 0)
             {
                 TryKill(p);
