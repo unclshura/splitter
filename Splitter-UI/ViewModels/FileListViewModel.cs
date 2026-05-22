@@ -7,20 +7,20 @@ namespace Splitter_UI.ViewModels;
 public partial class FileListViewModel : ObservableObject
 {
     private readonly IFileJobFactory _factory;
-    public ObservableCollection<FileJobViewModel> Files { get; } = [];
-    public ObservableCollection<FileJobViewModel> SelectedFiles { get; } = [];
+    public ObservableCollection<JobViewModel> Files { get; } = [];
+    public ObservableCollection<JobViewModel> SelectedFiles { get; } = [];
 
     [ObservableProperty]
-    private FileJobViewModel? _selected;
+    private JobViewModel? _selected;
 
-    public event Action<FileJobViewModel?>? SelectedFileChanged;
+    public event Action<JobViewModel?>? SelectedFileChanged;
 
     public FileListViewModel(IFileJobFactory factory)
     {
         _factory = factory;
     }
 
-    partial void OnSelectedChanged(FileJobViewModel? value)
+    partial void OnSelectedChanged(JobViewModel? value)
         => SelectedFileChanged?.Invoke(value);
 
     [RelayCommand]

@@ -6,5 +6,5 @@ namespace Splitter_UI.Services;
 
 public interface IFileJobFactory
 {
-    FileJobViewModel Create(SingleJob job);
+    JobViewModel Create(SingleJob job);
 }

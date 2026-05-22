@@ -9,9 +9,9 @@ public sealed class FileJobFactory : IFileJobFactory
         _services = services;
     }
 
-    public FileJobViewModel Create(SingleJob job)
+    public JobViewModel Create(SingleJob job)
     {
         // Resolve a fresh VM + fresh services
-        return ActivatorUtilities.CreateInstance<FileJobViewModel>(_services, job);
+        return ActivatorUtilities.CreateInstance<JobViewModel>(_services, job);
     }
 }

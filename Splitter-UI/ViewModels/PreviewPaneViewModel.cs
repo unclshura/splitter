@@ -5,7 +5,7 @@ namespace Splitter_UI.ViewModels;
 public partial class PreviewPaneViewModel : ObservableObject
 {
     [ObservableProperty]
-    private FileJobViewModel? _selected;
+    private JobViewModel? _selected;
 
     public PreviewPaneViewModel()
     {

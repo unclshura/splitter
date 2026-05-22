@@ -8,11 +8,16 @@ namespace Splitter_UI.ViewModels;
 public partial class InspectorPaneViewModel : ObservableObject
 {
     [ObservableProperty]
-    private FileJobViewModel? _selected;
+    private JobViewModel? _selected;
 
     public List<string> DetectModes => 
         [  
             "face", "body", "none"
+        ];
+
+    public List<int> RotationAngles =>
+        [
+            0, 90, 180, 270
         ];
 
     [RelayCommand]
@@ -22,4 +27,26 @@ public partial class InspectorPaneViewModel : ObservableObject
             return;
 
     }
+
+    public IRelayCommand RotateLeftCommand { get; }
+    public IRelayCommand RotateRightCommand { get; }
+
+    public InspectorPaneViewModel()
+    {
+        RotateLeftCommand = new RelayCommand(() => AdjustRotation(-90));
+        RotateRightCommand = new RelayCommand(() => AdjustRotation(+90));
+    }
+
+    private void AdjustRotation(int delta)
+    {
+        if (Selected?.Job == null)
+            return;
+
+        var r = Selected.Job.Rotate ?? 0;
+        r = (r + delta) % 360;
+        if (r < 0) r += 360;
+
+        Selected.Rotate = r;
+    }
+
 }
