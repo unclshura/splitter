@@ -41,6 +41,12 @@ public partial class JobViewModel : ObservableObject
 
     public string FileName => Path.GetFileName(Job.InputFile);
 
+    public string TextDesc => Probe != null 
+        ? $"{Probe.Width}x{Probe.Height}, {TimeSpan.FromSeconds(Probe.Duration).ToString(@"hh\:mm\:ss")}), FPS: {Probe.Fps:F2}, Bitrate: {Probe.Bitrate/1024/1024:F2} MB/s"
+        : "";
+
+    public override string ToString() => $"{FileName} - {TextDesc}";
+
     public ObservableCollection<ParameterEntry> ParametersList { get; }
         = new();
 
@@ -105,6 +111,7 @@ public partial class JobViewModel : ObservableObject
         {
             Job.Rotate = value;
             OnPropertyChanged();
+            Task.Run(CreatePreview);
         }
     }
 
@@ -145,7 +152,7 @@ public partial class JobViewModel : ObservableObject
     private async Task LoadThumbnailAsync()
     {
         Probe           = await _fileProbe.ProbeAsync(Job);
-        Thumbnail       = await _thumbnails.CreateThumbnailAsync(Job.InputFile, Probe);
+        Thumbnail       = await _thumbnails.CreateThumbnailAsync(Job.InputFile, Probe, rotateDegree: Job.Rotate);
         SuggestedAction = Probe.Rotation == 0 ? "crop" : "rotate";
 
         await CreatePreview();
@@ -157,9 +164,8 @@ public partial class JobViewModel : ObservableObject
             return;
         try
         {
-            var frame = await _thumbnails.CreateThumbnailAsync(Job.InputFile, Probe, TimeSpan.FromSeconds(PositionSeconds), Probe.Width, Probe.Height);
+            var frame = await _thumbnails.CreateThumbnailAsync(Job.InputFile, Probe, TimeSpan.FromSeconds(PositionSeconds), Probe.Width, Probe.Height, Job.Rotate);
             Preview = new PreviewData(frame, [], null);
-            OnPropertyChanged(nameof(Preview));
         }
         catch (Exception ex)
         {
@@ -197,21 +203,23 @@ public partial class JobViewModel : ObservableObject
 
     private void StepForward()
     {
-        var step = 10.0; // seconds
         if (DurationSeconds <= 0)
             return;
 
-        PositionSeconds = Math.Min(DurationSeconds, PositionSeconds + step);
+        var step = DurationSeconds * 0.1; // 10% of total duration
+
+        SliderLiveValue = Math.Min(DurationSeconds, SliderLiveValue + step);
         // trigger seek in your playback pipeline here
     }
 
     private void StepBackward()
     {
-        var step = 10.0; // seconds
         if (DurationSeconds <= 0)
             return;
 
-        PositionSeconds = Math.Max(0, PositionSeconds - step);
+        var step = DurationSeconds * 0.1; // 10% of total duration
+
+        SliderLiveValue = Math.Max(0, SliderLiveValue - step);
         // trigger seek in your playback pipeline here
     }
 

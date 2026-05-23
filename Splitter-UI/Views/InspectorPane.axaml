@@ -12,8 +12,9 @@ x:DataType="vm:InspectorPaneViewModel">
                 <TextBlock Text="Parameters" FontSize="10" Margin="0,0,0,10" FontWeight="Bold"/>
 
                 <!-- InputFile -->
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="{Binding Selected.FileName}" Width="360" Margin="0,0,0,10" FontStyle="Italic"/>
+                <StackPanel Orientation="Vertical" Spacing="8">
+                    <TextBlock Text="{Binding Selected.FileName}" Width="360" Margin="0,0,0,5" FontStyle="Italic"/>
+                    <TextBlock Text="{Binding Selected.TextDesc}" Width="360" FontSize="10" Margin="0,0,0,10" FontWeight="Bold" Foreground="#676767"/>
                 </StackPanel>
 
                 <!-- Rotate -->
@@ -113,13 +114,22 @@ x:DataType="vm:InspectorPaneViewModel">
                 <DataGrid ItemsSource="{Binding Selected.ParametersList}"
                                 AutoGenerateColumns="False"
                                 HeadersVisibility="Column"
+                                Margin="0,0,20,0"
                                 Height="160">
 
                     <DataGrid.Columns>
 
-                        <DataGridTextColumn Header="Key"
-                                                  Binding="{Binding Key}"
-                                                  Width="*"/>
+                        <DataGridTemplateColumn Header="Key" Width="*">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Key}"
+                                               FontSize="10"
+                                               TextTrimming="CharacterEllipsis"
+                                               ToolTip.Tip="{Binding Key}">
+                                    </TextBlock>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
 
                         <DataGridTemplateColumn Header="Value" Width="2*">
                             <DataGridTemplateColumn.CellTemplate>

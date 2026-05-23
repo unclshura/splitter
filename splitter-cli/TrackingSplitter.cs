@@ -170,16 +170,7 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
         var ss = start .ToString("0.###", CultureInfo.InvariantCulture);
         var t  = length.ToString("0.###", CultureInfo.InvariantCulture);
 
-        var rotateStr = "";
-        if (rotate != null)
-        {
-            switch (rotate.Value)
-            {
-                case 90:  rotateStr = ",transpose=1";  break;
-                case 180: rotateStr = ",transpose=PI"; break;
-                case 270: rotateStr = ",transpose=2";  break;
-            }
-        }
+        var rotateStr = GetRorationArg(rotate);
 
         var args =
     $"-i \"{inputFile}\" -ss {ss} -t {t} " +
@@ -215,6 +206,22 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
         });
 
         return p;
+    }
+
+    public static string GetRorationArg(int? rotate)
+    {
+        var rotateStr = "";
+        if (rotate != null)
+        {
+            switch (rotate.Value)
+            {
+                case 90: rotateStr = ",transpose=1"; break;
+                case 180: rotateStr = ",transpose=PI"; break;
+                case 270: rotateStr = ",transpose=2"; break;
+            }
+        }
+
+        return rotateStr;
     }
 
     private Process StartFfmpegEncode(

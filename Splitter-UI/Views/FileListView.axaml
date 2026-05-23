@@ -3,9 +3,14 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:vm="clr-namespace:Splitter_UI.ViewModels"
     xmlns:views="clr-namespace:Splitter_UI.Views"
-    xmlns:svg="clr-namespace:Avalonia.Svg.Skia;assembly=Avalonia.Svg.Skia"
+    xmlns:conv="clr-namespace:Splitter_UI.Converters"
     x:Class="Splitter_UI.Views.FileListView"
     x:DataType="vm:FileListViewModel">
+
+    <UserControl.Resources>
+        <conv:ZeroToBoolConverter x:Key="ZeroToBoolConverter"/>
+        <conv:RotationAngleToIconConverter x:Key="RotationAngleToIconConverter"/>
+    </UserControl.Resources>
 
     <UserControl.Styles>
         <Style Selector="views|FileListView Border#DropZone">
@@ -20,75 +25,91 @@
     </UserControl.Styles>
 
     <Border x:Name="DropZone"
-        Background="#1E1E1E"
-        Padding="10"
-        DragDrop.AllowDrop="True"
-        DragDrop.Drop="OnDrop"
-        DragDrop.DragOver="OnDragOver"
-        DragDrop.DragEnter="OnDragEnter"
-        DragDrop.DragLeave="OnDragLeave">
+            Background="#1E1E1E"
+            Padding="10"
+            DragDrop.AllowDrop="True"
+            DragDrop.Drop="OnDrop"
+            DragDrop.DragOver="OnDragOver"
+            DragDrop.DragEnter="OnDragEnter"
+            DragDrop.DragLeave="OnDragLeave">
 
 
+        <Grid>
 
-        <ScrollViewer>
-            <ListBox ItemsSource="{Binding Files}"
-                     SelectedItems="{Binding SelectedFiles}"
-                     SelectedItem="{Binding Selected}"
-                     SelectionMode="Multiple"
-                     BorderThickness="0"
-                     Background="Transparent">
+            <!-- Empty message -->
+            <TextBlock Text="Drag files here"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       FontSize="20"
+                       Foreground="#666"
+                       IsVisible="{Binding Files.Count, Converter={StaticResource ZeroToBoolConverter}}"/>
 
-                <ListBox.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <WrapPanel Orientation="Horizontal"/>
-                    </ItemsPanelTemplate>
-                </ListBox.ItemsPanel>
+            <!-- File list -->
+            <ScrollViewer>
+                <ListBox ItemsSource="{Binding Files}"
+                         SelectedItems="{Binding SelectedFiles}"
+                         SelectedItem="{Binding Selected}"
+                         SelectionMode="Multiple"
+                         BorderThickness="0"
+                         Background="Transparent">
 
-                <ListBox.Styles>
-                    <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
-	                    <Setter Property="Background" Value="#9A9A9A"/>	
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+
+                    <ListBox.Styles>
+                        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+                            <Setter Property="Background" Value="#9A9A9A"/>
                     </Style>
-                </ListBox.Styles>
-                
-                <ListBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:JobViewModel">
-                        <Border x:Name="ItemRoot"
-                                Margin="0"
-                                Padding="0"
-                                CornerRadius="4"
-                                Background="#2A2A2A">
-                            <StackPanel MinWidth="160" MaxWidth="160">
+                    </ListBox.Styles>
 
-                                <Border Width="160" Height="90" ClipToBounds="True">
-                                    <Grid>
-                                        <Image Source="{Binding Thumbnail}"
-                                               Stretch="UniformToFill"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"/>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:JobViewModel">
+                            <Border x:Name="ItemRoot"
+                                    Margin="0"
+                                    Padding="0"
+                                    CornerRadius="4"
+                                    Background="#2A2A2A">
+                                <StackPanel MinWidth="160" MaxWidth="160">
 
-                                        <TextBlock FontFamily="{StaticResource FontAwesome}"
-                                                   Text="{Binding SuggestedAction, Converter={StaticResource ActionToIconConverter}}"
-                                                   FontSize="12"
-                                                   HorizontalAlignment="Right"
-                                                   Foreground="LimeGreen"/>
-                                    </Grid>
-                                </Border>
+                                    <Border Width="160" Height="90" ClipToBounds="True">
+                                        <Grid>
+                                            <Image Source="{Binding Thumbnail}"
+                                                   Stretch="UniformToFill"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
 
-                                <TextBlock Text="{Binding FileName}"
-                                           TextWrapping="Wrap"
-                                           Margin="0,6,0,0"
-                                           FontSize="10"/>
+                                            <TextBlock FontFamily="{StaticResource FontAwesome}"
+                                                       Text="{Binding SuggestedAction, Converter={StaticResource ActionToIconConverter}}"
+                                                       FontSize="12"
+                                                       HorizontalAlignment="Right"
+                                                       Foreground="LimeGreen"/>
+                                            <TextBlock FontFamily="{StaticResource FontAwesome}"
+                                                       Text="{Binding Rotate, Converter={StaticResource RotationAngleToIconConverter}}"
+                                                       FontSize="12"
+                                                       HorizontalAlignment="Left"
+                                                       Foreground="LimeGreen"/>
+                                        </Grid>
+                                    </Border>
 
-                                <ProgressBar MinWidth="160"
-                                             MaxWidth="160"
-                                             Height="10"
-                                             Margin="0,4,0,0"
-                                             Value="{Binding Progress.Percent}" />
-                            </StackPanel>
-                        </Border>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
-        </ScrollViewer>
+                                    <TextBlock Text="{Binding FileName}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,6,0,0"
+                                               FontSize="10"/>
+
+                                    <ProgressBar MinWidth="160"
+                                                 MaxWidth="160"
+                                                 Height="10"
+                                                 Margin="0,4,0,0"
+                                                 Value="{Binding Progress.Percent}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </ScrollViewer>
+        </Grid>
     </Border>
 </UserControl>

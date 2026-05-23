@@ -6,7 +6,7 @@
     x:Class="Splitter_UI.Views.MainWindow"
     x:DataType="vm:MainViewModel"
     Width="1400"
-    Height="900"
+    Height="950"
     Title="Splitter UI">
 
     <DockPanel>
@@ -20,7 +20,7 @@
                        DataContext="{Binding LogPane}" />
 
         <!-- Main Content -->
-        <Grid ColumnDefinitions="2*,3*,2*">
+        <Grid ColumnDefinitions="2*,3*,430">
 
             <!-- File List -->
             <views:FileListView Grid.Column="0"

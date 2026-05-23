@@ -13,7 +13,13 @@ public sealed class ThumbnailService : IThumbnailService
     private readonly byte [] _bgrBuffer  = new byte[_thumbWidth * _thumbHeight * 3];
     private readonly byte [] _bgraBuffer = new byte[_thumbWidth * _thumbHeight * 4];
 
-    public async Task<Bitmap?> CreateThumbnailAsync(string file, VideoInfo probe, TimeSpan? skip = null, int? width = null, int? height = null)
+    public async Task<Bitmap?> CreateThumbnailAsync(
+        string file,
+        VideoInfo probe,
+        TimeSpan? skip = null,
+        int? width = null,
+        int? height = null,
+        int? rotateDegree = null)
     {
         width  ??= _thumbWidth;
         height ??= _thumbHeight;
@@ -29,7 +35,7 @@ public sealed class ThumbnailService : IThumbnailService
         var bgraBuffer = canUseStaticBuffers ? _bgraBuffer : new byte[width.Value * height.Value * 4];
 
         // Decode a single frame using ffmpeg → raw BGR24 into _bgrBuffer
-        bool ok = await DecodeFrameAsync(bgrBuffer, file, skip.Value, width.Value, height.Value);
+        bool ok = await DecodeFrameAsync(bgrBuffer, file, skip.Value, width.Value, height.Value, rotateDegree);
         if (!ok)
             return null;
 
@@ -37,17 +43,19 @@ public sealed class ThumbnailService : IThumbnailService
         ConvertBgrToBgra(bgrBuffer, bgraBuffer, width.Value, height.Value);
 
         // Create Avalonia Bitmap
-        return CreateBitmap(bgraBuffer, width.Value, height.Value);
+        return CreateBitmap(bgraBuffer, width.Value, height.Value, rotateDegree == 90 || rotateDegree == 270);
     }
 
-    private static async Task<bool> DecodeFrameAsync(byte [] bgrBuffer, string file, TimeSpan skip, int width, int height)
+    private static async Task<bool> DecodeFrameAsync(byte [] bgrBuffer, string file, TimeSpan skip, int width, int height, int? rotateDegree)
     {
+        var rotationStr = TrackingSplitter.GetRorationArg(rotateDegree);
+
         // ffmpeg command: decode one frame, resize, output raw BGR24
         var args =
             $"-ss {skip.TotalSeconds} -t 0.1 -i \"{file}\" " +
             "-an -sn " +
             $"-vf \"scale={width}:{height}:force_original_aspect_ratio=decrease," +
-            $"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,format=bgr24\" " +
+            $"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,format=bgr24{rotationStr}\" " +
             "-f rawvideo -";
 
         var psi = new ProcessStartInfo
@@ -107,8 +115,13 @@ public sealed class ThumbnailService : IThumbnailService
         }
     }
 
-    private static unsafe Bitmap CreateBitmap(byte[] bgra, int width, int height)
+    private static unsafe Bitmap CreateBitmap(byte[] bgra, int width, int height, bool isRotated)
     {
+        if (isRotated)
+        {
+            (height, width) = (width, height);
+        }
+
         int stride = width * 4;
 
         fixed (byte* p = bgra)
