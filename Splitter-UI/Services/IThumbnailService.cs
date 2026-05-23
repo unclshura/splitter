@@ -1,5 +1,4 @@
-﻿using System.Threading.Tasks;
-using Avalonia.Media.Imaging;
+﻿using Avalonia.Media.Imaging;
 
 namespace Splitter_UI.Services;
 

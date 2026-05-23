@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace Splitter_UI.Services;
+﻿namespace Splitter_UI.Services;
 
 internal class GlobalLogger(ILogService _logService) : ILogger
 {

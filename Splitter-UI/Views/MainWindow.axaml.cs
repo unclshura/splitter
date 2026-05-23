@@ -1,7 +1,4 @@
-using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Media;
-using Avalonia.Platform;
 
 namespace Splitter_UI.Views;
 

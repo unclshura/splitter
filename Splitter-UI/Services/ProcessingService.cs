@@ -1,8 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-
-namespace Splitter_UI.Services;
+﻿namespace Splitter_UI.Services;
 
 public sealed class ProcessingService : IProcessingService
 {

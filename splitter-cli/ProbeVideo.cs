@@ -1,5 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace splitter;
 
@@ -9,11 +11,20 @@ public record VideoInfo(
     int Height,
     double Fps,
     double Bitrate,
+    double SarX,
+    double SarY,
     int Rotation = 0
 );
 
 public static class ProbeVideo
 {
+    static ProbeVideo()
+    {
+        _ffprobeJsonOptions.Converters.Add(new FlexibleDoubleConverter());
+        _ffprobeJsonOptions.Converters.Add(new FlexibleIntConverter());
+        _ffprobeJsonOptions.Converters.Add(new FlexibleLongConverter());
+    }
+
     public static async Task<VideoInfo> Probe(SingleJob job)
     {
         var info = ProbeSize(job.InputFile);
@@ -32,15 +43,188 @@ public static class ProbeVideo
         return rotation;
     }
 
+    public sealed class FfprobeResult
+    {
+        public List<FfprobeStream>? Streams { get; set; }
+        public FfprobeFormat? Format { get; set; }
+    }
+
+    public sealed class FfprobeFormat
+    {
+        public string? Filename { get; set; }
+
+        [JsonConverter(typeof(FlexibleIntConverter))]
+        public int? Nb_streams { get; set; }
+
+        [JsonConverter(typeof(FlexibleIntConverter))]
+        public int? Nb_programs { get; set; }
+
+        [JsonConverter(typeof(FlexibleIntConverter))]
+        public int? Nb_stream_groups { get; set; }
+
+        public string? Format_name { get; set; }
+        public string? Format_long_name { get; set; }
+
+        [JsonConverter(typeof(FlexibleDoubleConverter))]
+        public double? Start_time { get; set; }
+
+        [JsonConverter(typeof(FlexibleDoubleConverter))]
+        public double? Duration { get; set; }
+
+        [JsonConverter(typeof(FlexibleLongConverter))]
+        public long? Size { get; set; }
+
+        [JsonConverter(typeof(FlexibleLongConverter))]
+        public long? Bit_rate { get; set; }
+
+        [JsonConverter(typeof(FlexibleIntConverter))]
+        public int? Probe_score { get; set; }
+
+        public Dictionary<string, string>? Tags { get; set; }
+    }
+
+
+    public sealed class FfprobeStream
+    {
+        [JsonConverter(typeof(FlexibleIntConverter))]
+        public int? Index { get; set; }
+
+        public string? Codec_name { get; set; }
+        public string? Codec_long_name { get; set; }
+        public string? Profile { get; set; }
+        public string? Codec_type { get; set; }
+        public string? Codec_tag_string { get; set; }
+        public string? Codec_tag { get; set; }
+        public string? Mime_codec_string { get; set; }
+
+        [JsonConverter(typeof(FlexibleIntConverter))]
+        public int? Width { get; set; }
+
+        [JsonConverter(typeof(FlexibleIntConverter))]
+        public int? Height { get; set; }
+
+        [JsonConverter(typeof(FlexibleIntConverter))]
+        public int? Coded_width { get; set; }
+
+        [JsonConverter(typeof(FlexibleIntConverter))]
+        public int? Coded_height { get; set; }
+
+        [JsonConverter(typeof(FlexibleIntConverter))]
+        public int? Closed_captions { get; set; }
+
+        [JsonConverter(typeof(FlexibleIntConverter))]
+        public int? Film_grain { get; set; }
+
+        [JsonConverter(typeof(FlexibleIntConverter))]
+        public int? Has_b_frames { get; set; }
+
+        public string? Sample_aspect_ratio { get; set; }
+        public string? Display_aspect_ratio { get; set; }
+
+        public string? Pix_fmt { get; set; }
+
+        [JsonConverter(typeof(FlexibleIntConverter))]
+        public int? Level { get; set; }
+
+        public string? Color_range { get; set; }
+        public string? Color_space { get; set; }
+        public string? Color_transfer { get; set; }
+        public string? Color_primaries { get; set; }
+        public string? Chroma_location { get; set; }
+        public string? Field_order { get; set; }
+
+        public string? Is_avc { get; set; }
+        public string? Nal_length_size { get; set; }
+
+        public string? Id { get; set; }
+        public string? R_frame_rate { get; set; }
+        public string? Avg_frame_rate { get; set; }
+        public string? Time_base { get; set; }
+
+        [JsonConverter(typeof(FlexibleLongConverter))]
+        public long? Start_pts { get; set; }
+
+        [JsonConverter(typeof(FlexibleDoubleConverter))]
+        public double? Start_time { get; set; }
+
+        [JsonConverter(typeof(FlexibleLongConverter))]
+        public long? Duration_ts { get; set; }
+
+        [JsonConverter(typeof(FlexibleDoubleConverter))]
+        public double? Duration { get; set; }
+
+        [JsonConverter(typeof(FlexibleLongConverter))]
+        public long? Bit_rate { get; set; }
+
+        [JsonConverter(typeof(FlexibleLongConverter))]
+        public long? Max_bit_rate { get; set; }
+
+        [JsonConverter(typeof(FlexibleIntConverter))]
+        public int? Bits_per_raw_sample { get; set; }
+
+        [JsonConverter(typeof(FlexibleIntConverter))]
+        public int? Bits_per_sample { get; set; }
+
+        [JsonConverter(typeof(FlexibleLongConverter))]
+        public long? Nb_frames { get; set; }
+
+        [JsonConverter(typeof(FlexibleIntConverter))]
+        public int? Extradata_size { get; set; }
+
+        [JsonConverter(typeof(FlexibleIntConverter))]
+        public int? Channels { get; set; }
+
+        public string? Channel_layout { get; set; }
+        public string? Sample_fmt { get; set; }
+
+        [JsonConverter(typeof(FlexibleIntConverter))]
+        public int? Sample_rate { get; set; }
+
+        [JsonConverter(typeof(FlexibleIntConverter))]
+        public int? Initial_padding { get; set; }
+
+        public string? Disposition_raw { get; set; }
+        public Dictionary<string, int>? Disposition { get; set; }
+
+        public Dictionary<string, string>? Tags { get; set; }
+
+        public string? Language { get; set; }
+        public string? Title { get; set; }
+
+        [JsonConverter(typeof(FlexibleIntConverter))]
+        public int? Bits_per_coded_sample { get; set; }
+
+        public string? Codec_time_base { get; set; }
+
+        [JsonConverter(typeof(FlexibleDoubleConverter))]
+        public double? Start_pts_time { get; set; }
+
+        [JsonConverter(typeof(FlexibleDoubleConverter))]
+        public double? Duration_time { get; set; }
+
+        public string? Extradata { get; set; }
+        public string? Default { get; set; }
+        public string? Forced { get; set; }
+    }
+
+    private static readonly JsonSerializerOptions _ffprobeJsonOptions =
+        new ()
+        {
+            PropertyNameCaseInsensitive = true,
+            IgnoreReadOnlyProperties    = false,
+            AllowTrailingCommas         = true,
+            ReadCommentHandling         = JsonCommentHandling.Skip,
+            UnknownTypeHandling         = JsonUnknownTypeHandling.JsonElement
+        };
+
     private static VideoInfo ProbeSize(string inputFile)
     {
         var args =
-        "-v error " +
-        "-select_streams v:0 " +
-        "-show_entries format=duration " +
-        "-show_entries stream=width,height,avg_frame_rate,bit_rate " +
-        "-of default=noprint_wrappers=1:nokey=0 " +   // <-- IMPORTANT: include keys
-        $"\"{inputFile}\"";
+            "-v error " +
+            "-show_streams " +
+            "-show_format " +
+            "-of json " +
+            $"\"{inputFile}\"";
 
         var psi = new ProcessStartInfo
         {
@@ -55,54 +239,62 @@ public static class ProbeVideo
         using var p = new Process { StartInfo = psi };
         p.Start();
 
-        var duration = -1.0;
-        var width    = 0;
-        var height   = 0;
-        var fps      = 0.0;
-        var bitrate  = 0.0;
+        var json = p.StandardOutput.ReadToEnd();
+        p.WaitForExit();
 
-        while (!p.StandardOutput.EndOfStream)
+        var result = JsonSerializer.Deserialize<FfprobeResult>(json, _ffprobeJsonOptions);
+        var stream = result?.Streams?.FirstOrDefault();
+        var format = result?.Format;
+
+        var duration = format?.Duration ?? 0.0;
+        var width    = stream?.Width ?? 0;
+        var height   = stream?.Height ?? 0;
+
+        double fps = 0.0;
+        if (!string.IsNullOrWhiteSpace(stream?.Avg_frame_rate))
         {
-            var line = p.StandardOutput.ReadLine()?.Trim();
-            if (string.IsNullOrWhiteSpace(line))
-                continue;
-
-            if (line.StartsWith("duration="))
+            var parts = stream.Avg_frame_rate.Split('/');
+            if (parts.Length == 2 &&
+                double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var num) &&
+                double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var den) &&
+                den != 0)
             {
-                var v = line.Substring("duration=".Length);
-                double.TryParse(v, NumberStyles.Any, CultureInfo.InvariantCulture, out duration);
-            }
-            else if (line.StartsWith("width="))
-            {
-                var v = line.Substring("width=".Length);
-                int.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out width);
-            }
-            else if (line.StartsWith("bit_rate="))
-            {
-                var v = line.Substring("bit_rate=".Length);
-                double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out bitrate);
-            }
-            else if (line.StartsWith("height="))
-            {
-                var v = line.Substring("height=".Length);
-                int.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out height);
-            }
-            else if (line.StartsWith("avg_frame_rate="))
-            {
-                var v = line.Substring("avg_frame_rate=".Length);
-                var parts = v.Split('/');
-                if (parts.Length == 2 &&
-                    double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var num) &&
-                    double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var den) &&
-                    den != 0)
-                {
-                    fps = num / den;
-                }
+                fps = num / den;
             }
         }
 
-        p.WaitForExit();
+        var bitrate = stream?.Bit_rate ?? 0.0;
 
-        return new(duration, width, height, fps, bitrate);
+        var (sarX, sarY) = ParseSar(stream?.Sample_aspect_ratio);
+
+        return new VideoInfo(duration, width, height, fps, bitrate, sarX, sarY);
     }
+
+    static double ParseDouble(string? s)
+    {
+        if (double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var v))
+            return v;
+
+        return 0.0;
+    }
+
+    private static (double x, double y) ParseSar(string? sar)
+    {
+        if (string.IsNullOrWhiteSpace(sar))
+            return (1.0, 1.0);
+
+        var parts = sar.Split(':');
+        if (parts.Length != 2)
+            return (1.0, 1.0);
+
+        if (double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var num) &&
+            double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var den) &&
+            den != 0)
+        {
+            return (num, den);
+        }
+
+        return (1.0, 1.0);
+    }
+
 }

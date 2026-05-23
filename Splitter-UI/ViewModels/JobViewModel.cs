@@ -155,9 +155,16 @@ public partial class JobViewModel : ObservableObject
 
     private async Task LoadThumbnailAsync()
     {
-        Probe           = await _fileProbe.ProbeAsync(Job);
-        Thumbnail       = await _thumbnails.CreateThumbnailAsync(Job.InputFile, Probe, rotateDegree: Job.Rotate);
-        SuggestedAction = Probe.Rotation == 0 ? "crop" : "rotate";
+        try
+        {
+            Probe           = await _fileProbe.ProbeAsync(Job);
+            Thumbnail       = await _thumbnails.CreateThumbnailAsync(Job.InputFile, Probe, rotateDegree: Job.Rotate);
+            SuggestedAction = Probe.Rotation == 0 ? "crop" : "rotate";
+        }
+        catch (Exception ex)
+        {
+            _log.LogError($"Error creating thumbnail for {FileName}: {ex.Message}");
+        }
 
         await CreatePreview();
     }
