@@ -1,6 +1,7 @@
 ﻿using Avalonia;
 using Avalonia.Media;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Splitter_UI;
 
@@ -31,12 +32,28 @@ internal sealed class Program
         services.AddTransient<StatusBarViewModel>();
         services.AddTransient<LogPaneViewModel>();
 
+        // splitter services
+        services.AddSingleton<UltraFaceDetector>();
+        services.AddSingleton<YoloOnnxObjectDetector>();
+        services.AddSingleton( x => new SingleThreadedDetector<UltraFaceDetector>(x.GetRequiredService<UltraFaceDetector>()) );
+        services.AddSingleton( x => new SingleThreadedDetector<YoloOnnxObjectDetector>(x.GetRequiredService<YoloOnnxObjectDetector>()));
+        services.AddSingleton<Func<string, IObjectDetector>>( x => detectorName =>
+        {
+            return detectorName switch
+            {
+                "face" => x.GetRequiredService<SingleThreadedDetector<UltraFaceDetector>>(),
+                "body" => x.GetRequiredService<SingleThreadedDetector<YoloOnnxObjectDetector>>(),
+                _      => new DummyDetector()
+            };
+        });
+        services.AddSingleton<splitter.ILogger, GlobalLogger>();
+
         // Domain services (your pipeline)
-        services.AddTransient<IFileProbeService, FileProbeService>();
-        services.AddTransient<IThumbnailService, ThumbnailService>();
+        services.AddTransient<IFileProbeService,    FileProbeService>();
+        services.AddTransient<IThumbnailService,    ThumbnailService>();
         services.AddSingleton<IAutoDecisionService, AutoDecisionService>();
-        services.AddSingleton<IProcessingService, ProcessingService>();
-        services.AddSingleton<ILogService, LogService>();
+        services.AddSingleton<IProcessingService,   ProcessingService>();
+        services.AddSingleton<ILogService,          LogService>();
 
         services.AddSingleton<IFileJobFactory, FileJobFactory>();
 

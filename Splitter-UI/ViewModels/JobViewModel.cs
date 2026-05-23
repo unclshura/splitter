@@ -35,9 +35,11 @@ public partial class JobViewModel : ObservableObject
     public IRelayCommand StepForwardCommand { get; }
     public IRelayCommand StepBackwardCommand { get; }
 
-    private readonly IThumbnailService _thumbnails;
-    private readonly IFileProbeService _fileProbe;
-    private readonly DispatcherTimer _debounceTimer;
+    private readonly IThumbnailService             _thumbnails;
+    private readonly IFileProbeService             _fileProbe;
+    private readonly DispatcherTimer               _debounceTimer;
+    private readonly Func<string, IObjectDetector> _detectorFactory;
+    private readonly ILogger                       _log;
 
     public string FileName => Path.GetFileName(Job.InputFile);
 
@@ -115,11 +117,13 @@ public partial class JobViewModel : ObservableObject
         }
     }
 
-    public JobViewModel(SingleJob job, IThumbnailService thumbnails, IFileProbeService fileProbe)
+    public JobViewModel(SingleJob job, IThumbnailService thumbnails, IFileProbeService fileProbe, Func<string, IObjectDetector> detectorFactory, ILogger log)
     {
-        Job         = job;
-        _thumbnails = thumbnails;
-        _fileProbe  = fileProbe;
+        Job              = job;
+        _thumbnails      = thumbnails;
+        _fileProbe       = fileProbe;
+        _detectorFactory = detectorFactory;
+        _log             = log;
 
         ParametersList.Add(new ParameterEntry("DropoutToleranceFrames", ""));
         ParametersList.Add(new ParameterEntry("EmaFactor", ""));
@@ -164,11 +168,21 @@ public partial class JobViewModel : ObservableObject
             return;
         try
         {
-            var frame = await _thumbnails.CreateThumbnailAsync(Job.InputFile, Probe, TimeSpan.FromSeconds(PositionSeconds), Probe.Width, Probe.Height, Job.Rotate);
-            Preview = new PreviewData(frame, [], null);
+            var frame    = await _thumbnails.CreateThumbnailAsync(Job.InputFile, Probe, TimeSpan.FromSeconds(PositionSeconds), Probe.Width, Probe.Height, Job.Rotate);
+            if (  frame == null )
+                return;
+
+            Preview      = new PreviewData(frame, [], null);
+
+            var detector = _detectorFactory(Job.Detect ?? "");
+            var detections = detector.DetectAll(frame.ToMatContinuous());
+
+            var boxes = detections.Select(x => new Avalonia.Rect(x.box.X, x.box.Y, x.box.Width, x.box.Height)).ToList();
+            Preview = new PreviewData(frame, boxes, null);
         }
         catch (Exception ex)
         {
+            _log.LogError($"Error creating preview for {FileName}: {ex.Message}");
         }
     }
 
