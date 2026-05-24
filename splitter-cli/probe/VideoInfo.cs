@@ -1,4 +1,7 @@
-﻿namespace splitter;
+﻿using OpenCvSharp;
+using splitter.algo;
+
+namespace splitter.probe;
 
 public record VideoInfo(
     double Duration,

@@ -2,7 +2,7 @@
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
-namespace splitter;
+namespace splitter.tui;
 
 
 /// <summary>

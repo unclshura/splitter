@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
-using static splitter.ProbeVideo;
+using static splitter.probe.ProbeVideo;
 
-namespace splitter;
+namespace splitter.probe;
 
 public sealed class FfprobeResult
 {

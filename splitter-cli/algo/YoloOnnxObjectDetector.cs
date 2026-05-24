@@ -2,8 +2,9 @@
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using OpenCvSharp;
+using splitter.tui;
 
-namespace splitter;
+namespace splitter.algo;
 
 public sealed class YoloOnnxObjectDetector : LoggingBase, IObjectDetector, IDisposable
 {

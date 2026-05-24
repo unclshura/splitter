@@ -1,5 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Globalization;
+using splitter.algo;
+using splitter.tui;
 
 namespace splitter;
 

@@ -1,4 +1,4 @@
-﻿namespace splitter;
+﻿namespace splitter.util;
 
 public static class FileMaskExpander
 {

@@ -1,6 +1,6 @@
 ﻿using OpenCvSharp;
 
-namespace splitter;
+namespace splitter.algo;
 
 public interface IObjectDetector : IDisposable
 {

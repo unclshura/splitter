@@ -1,4 +1,6 @@
 using splitter;
+using splitter.algo;
+using splitter.probe;
 
 public record SingleTask(
     SingleJob Job,

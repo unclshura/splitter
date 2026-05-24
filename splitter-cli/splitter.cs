@@ -2,6 +2,9 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using Spectre.Console;
 using splitter;
+using splitter.algo;
+using splitter.probe;
+using splitter.tui;
 
 static partial class Program
 {
@@ -76,7 +79,7 @@ static partial class Program
         if (!Directory.Exists(job.OutputFolder))
             Directory.CreateDirectory(job.OutputFolder);
 
-        var info = await ProbeVideo.Probe(job);
+        var info = await ProbeVideo.Probe(job.InputFile, job.RotateAuto);
         if (info.Duration <= 0)
         {
             LogError($"{baseName}: Could not read duration.");

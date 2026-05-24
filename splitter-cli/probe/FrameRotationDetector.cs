@@ -1,6 +1,6 @@
 ﻿using OpenCvSharp;
 
-namespace splitter;
+namespace splitter.probe;
 
 public sealed class FrameRotationDetector
 {
@@ -18,17 +18,17 @@ public sealed class FrameRotationDetector
 
     public FrameRotationDetector(int width = 320, int height = 180, int bins = 36)
     {
-        _w = width;
-        _h = height;
-        _bins = bins;
+        _w     = width;
+        _h     = height;
+        _bins  = bins;
 
-        _gray = new Mat(height, width, MatType.CV_8UC1);
-        _gx = new Mat(height, width, MatType.CV_32F);
-        _gy = new Mat(height, width, MatType.CV_32F);
-        _mag = new Mat(height, width, MatType.CV_32F);
+        _gray  = new Mat(height, width, MatType.CV_8UC1);
+        _gx    = new Mat(height, width, MatType.CV_32F);
+        _gy    = new Mat(height, width, MatType.CV_32F);
+        _mag   = new Mat(height, width, MatType.CV_32F);
         _angle = new Mat(height, width, MatType.CV_32F);
 
-        _hist = new float[bins];   // allocated once
+        _hist  = new float[bins];   // allocated once
     }
 
     public int GetRotation(Mat frame)

@@ -1,4 +1,4 @@
-﻿namespace splitter;
+﻿namespace splitter.algo;
 
 public sealed class KalmanTracker
 {

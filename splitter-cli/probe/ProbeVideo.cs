@@ -2,8 +2,9 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using splitter.algo;
 
-namespace splitter;
+namespace splitter.probe;
 
 public static class ProbeVideo
 {
@@ -14,23 +15,20 @@ public static class ProbeVideo
         _ffprobeJsonOptions.Converters.Add(new FlexibleLongConverter());
     }
 
-    public static async Task<VideoInfo> Probe(SingleJob job)
+    public static async Task<VideoInfo> Probe(string inputFile, bool detectRotation)
     {
-        var info = ProbeSize(job.InputFile);
-        if ( job.RotateAuto)
+        var info = ProbeSize(inputFile);
+        if (detectRotation)
         {
-            var rotation = await ProbeRotation(job, info.Duration);
+            var rotation = await ProbeRotation(inputFile, info.Duration);
             info = info with { Rotation = rotation };
         }
 
         return info;
     }
 
-    private static async Task<int> ProbeRotation(SingleJob job, double duration)
-    {
-        var rotation = await new VideoRotationSampler(job).DetectRotationAsync(job.InputFile, duration);
-        return rotation;
-    }
+    private static async Task<int> ProbeRotation(string inputFile, double duration)
+        => await new VideoRotationSampler(null).DetectRotationAsync(inputFile, duration);
 
     private static readonly JsonSerializerOptions _ffprobeJsonOptions =
         new ()

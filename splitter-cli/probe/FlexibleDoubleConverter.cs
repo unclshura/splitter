@@ -2,7 +2,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace splitter;
+namespace splitter.probe;
 
 public sealed class FlexibleDoubleConverter : JsonConverter<double?>
 {

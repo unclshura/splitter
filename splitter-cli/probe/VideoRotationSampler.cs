@@ -1,7 +1,7 @@
 ﻿using OpenCvSharp;
 using System.Diagnostics;
 
-namespace splitter;
+namespace splitter.probe;
 
 public sealed class VideoRotationSampler
 {
@@ -16,16 +16,19 @@ public sealed class VideoRotationSampler
     private readonly byte[] _buffer;
     private readonly Mat _frameMat;
 
-    public VideoRotationSampler(SingleJob _master)
+    public VideoRotationSampler(IDictionary<string, string>? overrides)
     {
-        if (_master.Parameters.TryGetValue("RotationDetectorSampleCount", out var s))
-            RotationDetectorSampleCount  = int.Parse(s);
-        if (_master.Parameters.TryGetValue("RotationDetectorSampleLength", out s))
-            RotationDetectorSampleLength = double.Parse(s);
-        if (_master.Parameters.TryGetValue("RotationDetectorFrameWidth", out s))
-            RotationDetectorFrameWidth   = int.Parse(s);
-        if (_master.Parameters.TryGetValue("RotationDetectorFrameHeight", out s))
-            RotationDetectorFrameHeight  = int.Parse(s);
+        if (overrides != null)
+        {
+            if (overrides.TryGetValue("RotationDetectorSampleCount", out var s))
+                RotationDetectorSampleCount = int.Parse(s);
+            if (overrides.TryGetValue("RotationDetectorSampleLength", out s))
+                RotationDetectorSampleLength = double.Parse(s);
+            if (overrides.TryGetValue("RotationDetectorFrameWidth", out s))
+                RotationDetectorFrameWidth = int.Parse(s);
+            if (overrides.TryGetValue("RotationDetectorFrameHeight", out s))
+                RotationDetectorFrameHeight = int.Parse(s);
+        }
 
         int w = RotationDetectorFrameWidth;
         int h = RotationDetectorFrameHeight;

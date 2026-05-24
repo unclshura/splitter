@@ -1,4 +1,4 @@
-﻿namespace splitter;
+﻿namespace splitter.tui;
 
 public abstract class LoggingBase(ILogger _logger, int _progressLine)
 {

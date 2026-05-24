@@ -1,4 +1,4 @@
-﻿namespace splitter;
+﻿namespace splitter.tui;
 
 public interface ILogger
 {

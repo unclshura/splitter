@@ -50,7 +50,6 @@
 
 
   <ItemGroup>
-    <Compile Update="ThisAssembly.g.cs" />
 
     <Content Include="models/*.*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

@@ -1,8 +1,9 @@
 ﻿using System.Runtime.InteropServices;
 using OpenCvSharp;
+using splitter.tui;
 using UltraFaceDotNet;
 
-namespace splitter;
+namespace splitter.algo;
 
 public sealed class UltraFaceDetector: LoggingBase, IDisposable, IObjectDetector
 {
