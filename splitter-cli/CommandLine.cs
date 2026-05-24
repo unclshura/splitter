@@ -6,6 +6,10 @@ namespace splitter;
 
 public sealed class CommandLine
 {
+    // Default vertical Full HD for YouTube Shorts
+    public const int DefaultW = 607;
+    public const int DefaultH = 1080;
+
     public SingleJob Master { get; } = new SingleJob();
     public SingleJob[] Jobs { get; }
 
@@ -231,13 +235,9 @@ public sealed class CommandLine
 
     private static (int width, int height)? ParseCrop(string v)
     {
-        // Default vertical Full HD for YouTube Shorts
-        const int defaultW = 607;
-        const int defaultH = 1080;
-
         // Empty or whitespace → default crop
         if (string.IsNullOrWhiteSpace(v))
-            return (defaultW, defaultH);
+            return (DefaultW, DefaultH);
 
         var s = v.Trim().ToLowerInvariant();
 

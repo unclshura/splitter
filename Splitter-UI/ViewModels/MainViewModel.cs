@@ -19,6 +19,8 @@ public partial class MainViewModel : ViewModelBase
             Preview.Selected = file;
             Inspector.Selected = file;
         };
+
+        Inspector.Files = FileList.Files;
     }
 
     [RelayCommand]

@@ -16,7 +16,7 @@ public partial class JobViewModel : ObservableObject
     private SingleJob Job { get; }
     
     [ObservableProperty] private VideoInfo?    _probe;
-    [ObservableProperty] private PreviewData?  _preview = new(null, [], null);
+    [ObservableProperty] private PreviewData?  _preview = new(null, [], null, new(0.5f, 0.5f));
     [ObservableProperty] private ProgressInfo? _progress;
     [ObservableProperty] private Bitmap?       _thumbnail;
     [ObservableProperty] private string        _suggestedAction = "";
@@ -84,6 +84,7 @@ public partial class JobViewModel : ObservableObject
                     Job.GravitateTo = new Point2f(x, y);
             }
             OnPropertyChanged();
+            OnPropertyChanged(nameof(GravitateTo));
         }
     }
 
@@ -170,6 +171,20 @@ public partial class JobViewModel : ObservableObject
         }
     }
 
+    public Point2f GravitateTo
+    {
+        get => Job.GravitateTo ?? new Point2f(0.5f, 0.5f);
+        set
+        {
+            if (Job.GravitateTo != null && Math.Abs(Job.GravitateTo.Value.X - value.X) < 0.001 && Math.Abs(Job.GravitateTo.Value.Y - value.Y) < 0.001)
+                return;
+
+            Job.GravitateTo = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(GravitateText));
+        }
+    }
+
     public double? OverrideTargetDuration
     {
         get => Job.OverrideTargetDuration;
@@ -188,14 +203,14 @@ public partial class JobViewModel : ObservableObject
         _detectorFactory = detectorFactory;
         _log             = log;
 
-        ParametersList.Add(new ParameterEntry("DropoutToleranceFrames", ""));
-        ParametersList.Add(new ParameterEntry("EmaFactor", ""));
-        ParametersList.Add(new ParameterEntry("CameraEasing", ""));
-        ParametersList.Add(new ParameterEntry("LostFreezeFrames", ""));
-        ParametersList.Add(new ParameterEntry("RotationDetectorSampleCount", ""));
+        ParametersList.Add(new ParameterEntry("DropoutToleranceFrames"      , ""));
+        ParametersList.Add(new ParameterEntry("EmaFactor"                   , ""));
+        ParametersList.Add(new ParameterEntry("CameraEasing"                , ""));
+        ParametersList.Add(new ParameterEntry("LostFreezeFrames"            , ""));
+        ParametersList.Add(new ParameterEntry("RotationDetectorSampleCount" , ""));
         ParametersList.Add(new ParameterEntry("RotationDetectorSampleLength", ""));
-        ParametersList.Add(new ParameterEntry("RotationDetectorFrameWidth", ""));
-        ParametersList.Add(new ParameterEntry("RotationDetectorFrameHeight", ""));
+        ParametersList.Add(new ParameterEntry("RotationDetectorFrameWidth"  , ""));
+        ParametersList.Add(new ParameterEntry("RotationDetectorFrameHeight" , ""));
 
         foreach (var entry in ParametersList)
         {
@@ -204,7 +219,7 @@ public partial class JobViewModel : ObservableObject
 
         ParametersList.CollectionChanged += OnParametersCollectionChanged;
 
-        StepForwardCommand = new RelayCommand(StepForward);
+        StepForwardCommand  = new RelayCommand(StepForward);
         StepBackwardCommand = new RelayCommand(StepBackward);
 
         _debounceTimer = new DispatcherTimer
@@ -224,19 +239,60 @@ public partial class JobViewModel : ObservableObject
             if (  frame == null )
                 return;
 
-            Preview      = new PreviewData(frame, [], null);
+            Preview      = new PreviewData(frame, [], null, Job.GravitateTo ?? new (0.5f, 0.5f));
 
             var detector = _detectorFactory(Job.Detect ?? "");
             var detections = detector.DetectAll(frame.ToMatContinuous());
 
-            var boxes = detections.Select(x => new OpenCvSharp.Rect(x.box.X, x.box.Y, x.box.Width, x.box.Height)).ToList();
-            Preview = new PreviewData(frame, boxes, null);
+            Rect? crop = null;
+            if (detections.Count > 0)
+            {
+                var primaryDetection = detections
+                    .OrderByDescending(d => d.box.Height * d.box.Width)
+                    .FirstOrDefault();
+
+                var w = Probe.Width;
+                var h = Probe.Height;
+
+                var cropWidth  = Job.Crop?.width  ?? CommandLine.DefaultW;
+                var cropHeight = Job.Crop?.height ?? CommandLine.DefaultH;
+
+                var cx = primaryDetection.center.X - cropWidth  / 2f;
+                var cy = primaryDetection.center.Y - cropHeight / 2f;
+
+                var r = new Rect(cx, cy, cropWidth, cropHeight);
+
+                crop = ClampCrop(r, w, h);
+            }
+
+            var boxes = detections.Select(x => x.box).ToList();
+            Preview = new PreviewData(frame, boxes, crop, Job.GravitateTo ?? new (0.5f, 0.5f));
         }
         catch (Exception ex)
         {
             _log.LogError($"Error creating preview for {FileName}: {ex.Message}");
         }
     }
+
+    private static Rect ClampCrop(Rect r, float w, float h)
+    {
+        var x = r.X;
+        var y = r.Y;
+        var cw = r.Width;
+        var ch = r.Height;
+
+        if (x < 0) x = 0;
+        if (y < 0) y = 0;
+
+        if (x + cw > w) x = w - cw;
+        if (y + ch > h) y = h - ch;
+
+        if (x < 0) x = 0;
+        if (y < 0) y = 0;
+
+        return new Rect(x, y, cw, ch);
+    }
+
 
     private void OnParameterChanged(object? sender, PropertyChangedEventArgs e)
     {

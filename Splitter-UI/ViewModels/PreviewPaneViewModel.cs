@@ -12,6 +12,17 @@ public partial class PreviewPaneViewModel : ObservableObject
     public PreviewData? Preview => Selected?.Preview;
     public Point2f? Sar         => Selected?.Probe?.Sar;
     public int Rotate           => Selected?.Rotate ?? 0;
+    public Point2f GravitateTo
+    {
+        get => Selected?.GravitateTo ?? new Point2f(0.5f, 0.5f);
+        set
+        {
+            if (Selected == null)
+                return;
+            Selected.GravitateTo = value;
+            OnPropertyChanged(nameof(GravitateTo));
+        }
+    }
 
     partial void OnSelectedChanged(JobViewModel? oldValue, JobViewModel? newValue)
     {

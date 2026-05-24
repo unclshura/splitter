@@ -1,4 +1,5 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+﻿using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
 namespace Splitter_UI.ViewModels;
@@ -7,6 +8,8 @@ public partial class InspectorPaneViewModel : ObservableObject
 {
     [ObservableProperty]
     private JobViewModel? _selected;
+
+    public ObservableCollection<JobViewModel> Files { get; set; } = [];
 
     public List<string> DetectModes => 
         [  
@@ -24,6 +27,22 @@ public partial class InspectorPaneViewModel : ObservableObject
         if (Selected is null)
             return;
 
+        foreach (JobViewModel job in Files.Where(x => !ReferenceEquals(x, Selected)))
+        {
+            job.Detect                 = Selected.Detect;
+            job.Rotate                 = Selected.Rotate;
+            job.CropText               = Selected.CropText;
+            job.ForceFixed             = Selected.ForceFixed;
+            job.GravitateText          = Selected.GravitateText;
+            job.Mask                   = Selected.Mask;
+            job.OutputFolder           = Selected.OutputFolder;
+            job.OverrideTargetDuration = Selected.OverrideTargetDuration;
+            job.PassthroughText        = Selected.PassthroughText;
+            
+            job.ParametersList.Clear();
+            foreach (var param in Selected.ParametersList)
+                job.ParametersList.Add(param);
+        }
     }
 
     public IRelayCommand RotateLeftCommand { get; }

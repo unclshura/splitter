@@ -13,7 +13,8 @@
                 Grid.Row="0"
                 Preview="{Binding Preview}"
                 Sar="{Binding Sar}"
-                RotateAngle="{Binding Rotate}" />
+                RotateAngle="{Binding Rotate}"
+                GravitateTo="{Binding GravitateTo}"/>
 
             <Grid Grid.Row="1"
                   ColumnDefinitions="Auto,*,Auto"
