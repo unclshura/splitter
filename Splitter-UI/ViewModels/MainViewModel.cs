@@ -10,9 +10,9 @@ public partial class MainViewModel : ViewModelBase
     public StatusBarViewModel StatusBar { get; } = new StatusBarViewModel();
     public LogPaneViewModel LogPane { get; } = new LogPaneViewModel();
 
-    public MainViewModel(IFileJobFactory fileJobFactory)
+    public MainViewModel(IFileJobFactory fileJobFactory, IAutoDecisionService autoDecisionService)
     {
-        FileList = new FileListViewModel(fileJobFactory);
+        FileList = new FileListViewModel(fileJobFactory, autoDecisionService);
         // Wire selection → preview + inspector
         FileList.SelectedFileChanged += file =>
         {

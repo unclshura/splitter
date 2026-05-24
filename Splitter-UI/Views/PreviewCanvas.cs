@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Threading;
+using splitter.algo;
 
 namespace Splitter_UI.Views;
 
@@ -12,8 +13,8 @@ public sealed class PreviewCanvas : Control
         AvaloniaProperty.Register<PreviewCanvas, PreviewData?>(nameof(Preview));
     public static readonly StyledProperty<Point2f?> SarProperty =
         AvaloniaProperty.Register<PreviewCanvas, Point2f?>(nameof(Sar));
-    public static readonly StyledProperty<Point2f?> DarProperty =
-        AvaloniaProperty.Register<PreviewCanvas, Point2f?>(nameof(Dar));
+    public static readonly StyledProperty<int> RotateAngleProperty =
+        AvaloniaProperty.Register<PreviewCanvas, int>(nameof(RotateAngle));
 
     public PreviewData? Preview
     {
@@ -27,10 +28,10 @@ public sealed class PreviewCanvas : Control
         set => SetValue(SarProperty, value);
     }
 
-    public Point2f? Dar
+    public int RotateAngle
     {
-        get => GetValue(DarProperty);
-        set => SetValue(DarProperty, value);
+        get => GetValue(RotateAngleProperty);
+        set => SetValue(RotateAngleProperty, value);
     }
 
     static PreviewCanvas()
@@ -83,10 +84,12 @@ public sealed class PreviewCanvas : Control
         if (dispW <= 0 || dispH <= 0)
             return;
 
-        // SAR
+        var rotate = RotateAngle; // 0, 90, 180, 270
+
+        // SAR (always original, never rotated)
         var sar = Sar ?? new Point2f(1, 1);
-        var sarX = (double)sar.X;
-        var sarY = (double)sar.Y;
+        var sarX = sar.X;
+        var sarY = sar.Y;
 
         if (sarX <= 0 || sarY <= 0)
         {
@@ -94,22 +97,23 @@ public sealed class PreviewCanvas : Control
             sarY = 1;
         }
 
-        // DAR override (only if SAR missing or invalid)
-        if ((sarX == 1 && sarY == 1) && Dar is { } dar && dar.X > 0 && dar.Y > 0)
-        {
-            var darRatio = dar.X / dar.Y;
-            var encodedRatio = rawW / (double)rawH;
-
-            // recompute SAR from DAR
-            sarX = darRatio / encodedRatio;
-            sarY = 1;
-        }
-
         var pixelAspect = sarX / sarY;
 
-        // display size after SAR correction
-        var displayW = rawW * pixelAspect;
-        var displayH = rawH;
+        double displayW;
+        double displayH;
+
+        if (rotate == 0 || rotate == 180)
+        {
+            // encoded horizontal axis = rawW
+            displayW = rawW * pixelAspect;
+            displayH = rawH;
+        }
+        else
+        {
+            // encoded horizontal axis = rawH (bitmap already rotated)
+            displayW = rawW;
+            displayH = rawH * pixelAspect;
+        }
 
         var scale = Math.Min(dispW / displayW, dispH / displayH);
 
@@ -132,11 +136,47 @@ public sealed class PreviewCanvas : Control
 
             foreach (var r in preview.DetectedBoxes)
             {
+                double x = r.X;
+                double y = r.Y;
+                double w = r.Width;
+                double h = r.Height;
+
+                // rotate overlay coordinates (still using your existing logic)
+                switch (rotate)
+                {
+                    case 90:
+                        (x, y) = (rawH - (y + h), x);
+                        (w, h) = (h, w);
+                        break;
+
+                    case 180:
+                        x = rawW - (x + w);
+                        y = rawH - (y + h);
+                        break;
+
+                    case 270:
+                        (x, y) = (y, rawW - (x + w));
+                        (w, h) = (h, w);
+                        break;
+                }
+
+                // apply SAR to the axis that originated from encoded width
+                if (rotate == 0 || rotate == 180)
+                {
+                    x *= pixelAspect;
+                    w *= pixelAspect;
+                }
+                else
+                {
+                    y *= pixelAspect;
+                    h *= pixelAspect;
+                }
+
                 var rr = new Rect(
-                offsetX + (r.X * pixelAspect) * scale,
-                offsetY + r.Y * scale,
-                (r.Width * pixelAspect) * scale,
-                r.Height * scale);
+                offsetX + x * scale,
+                offsetY + y * scale,
+                w * scale,
+                h * scale);
 
                 context.DrawRectangle(null, pen, rr);
             }

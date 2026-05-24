@@ -37,10 +37,10 @@ public partial class InspectorPaneViewModel : ObservableObject
 
     private void AdjustRotation(int delta)
     {
-        if (Selected?.Job == null)
+        if ( Selected == null)
             return;
 
-        var r = Selected.Job.Rotate ?? 0;
+        var r = Selected.Rotate;
         r = (r + delta) % 360;
         if (r < 0) r += 360;
 

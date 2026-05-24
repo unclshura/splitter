@@ -1,6 +1,8 @@
 ﻿using Avalonia;
 using Avalonia.Media;
 using Microsoft.Extensions.DependencyInjection;
+using splitter.algo;
+using splitter.tui;
 
 namespace Splitter_UI;
 
@@ -45,7 +47,7 @@ internal sealed class Program
                 _      => new DummyDetector()
             };
         });
-        services.AddSingleton<splitter.ILogger, GlobalLogger>();
+        services.AddSingleton<ILogger, GlobalLogger>();
 
         // Domain services (your pipeline)
         services.AddTransient<IFileProbeService,    FileProbeService>();

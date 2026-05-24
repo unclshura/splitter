@@ -7,6 +7,7 @@ namespace Splitter_UI.ViewModels;
 public partial class FileListViewModel : ObservableObject
 {
     private readonly IFileJobFactory _factory;
+    private readonly IAutoDecisionService _autoDecisionService;
     public ObservableCollection<JobViewModel> Files { get; } = [];
     public ObservableCollection<JobViewModel> SelectedFiles { get; } = [];
 
@@ -15,9 +16,10 @@ public partial class FileListViewModel : ObservableObject
 
     public event Action<JobViewModel?>? SelectedFileChanged;
 
-    public FileListViewModel(IFileJobFactory factory)
+    public FileListViewModel(IFileJobFactory factory, IAutoDecisionService autoDecisionService)
     {
         _factory = factory;
+        _autoDecisionService = autoDecisionService;
     }
 
     partial void OnSelectedChanged(JobViewModel? value)
@@ -32,6 +34,9 @@ public partial class FileListViewModel : ObservableObject
             var job = new SingleJob { InputFile = path };
             var vm = _factory.Create(job);
             Files.Add(vm);
+            _autoDecisionService.ApplyAutoDecisions(vm);
         }
+
+        Selected = Files.LastOrDefault();
     }
 }

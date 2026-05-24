@@ -2,5 +2,5 @@
 
 public interface IAutoDecisionService
 {
-    void ApplyAutoDecisions(SingleJob job, VideoInfo probe);
+    void ApplyAutoDecisions(JobViewModel job);
 }

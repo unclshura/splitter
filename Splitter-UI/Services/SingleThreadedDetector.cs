@@ -1,4 +1,5 @@
 ﻿using OpenCvSharp;
+using splitter.algo;
 
 namespace Splitter_UI.Services;
 
@@ -7,7 +8,7 @@ public class SingleThreadedDetector<T>(IObjectDetector _detector) : IObjectDetec
 {
     private Lock _lock = new();
 
-    public List<(Rect box, splitter.Point2f center)> DetectAll(Mat frameCont)
+    public List<(OpenCvSharp.Rect box, Point2f center)> DetectAll(Mat frameCont)
     {
         lock (_lock)
         {

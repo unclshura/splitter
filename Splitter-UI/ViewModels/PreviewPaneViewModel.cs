@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using splitter.algo;
 
 namespace Splitter_UI.ViewModels;
 
@@ -9,8 +10,8 @@ public partial class PreviewPaneViewModel : ObservableObject
     private JobViewModel? _selected;
 
     public PreviewData? Preview => Selected?.Preview;
-    public Point2f? Sar => Selected?.Probe?.Sar;
-    public Point2f? Dar => Selected?.Probe?.Dar;
+    public Point2f? Sar         => Selected?.Probe?.Sar;
+    public int Rotate           => Selected?.Rotate ?? 0;
 
     partial void OnSelectedChanged(JobViewModel? oldValue, JobViewModel? newValue)
     {
@@ -22,7 +23,7 @@ public partial class PreviewPaneViewModel : ObservableObject
 
         OnPropertyChanged(nameof(Preview));
         OnPropertyChanged(nameof(Sar));
-        OnPropertyChanged(nameof(Dar));
+        OnPropertyChanged(nameof(Rotate));
     }
 
     private void SelectedPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -33,7 +34,7 @@ public partial class PreviewPaneViewModel : ObservableObject
         if (e.PropertyName == nameof(JobViewModel.Probe))
         {
             OnPropertyChanged(nameof(Sar));
-            OnPropertyChanged(nameof(Dar));
+            OnPropertyChanged(nameof(Rotate));
         }
     }
 }

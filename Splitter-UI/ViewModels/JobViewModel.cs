@@ -5,12 +5,15 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using splitter.algo;
+using splitter.probe;
+using splitter.tui;
 
 namespace Splitter_UI.ViewModels;
 
 public partial class JobViewModel : ObservableObject
 {
-    public SingleJob Job { get; }
+    private SingleJob Job { get; }
     
     [ObservableProperty] private VideoInfo?    _probe;
     [ObservableProperty] private PreviewData?  _preview = new(null, [], null);
@@ -20,13 +23,13 @@ public partial class JobViewModel : ObservableObject
     [ObservableProperty] private double        _sliderLiveValue;
     [ObservableProperty] private double        _positionSeconds;
 
+    public string InputFile       => Job.InputFile;
     public double DurationSeconds => Probe?.Duration ?? 0;
 
-    public IRelayCommand StepForwardCommand { get; }
+    public IRelayCommand StepForwardCommand  { get; }
     public IRelayCommand StepBackwardCommand { get; }
 
     private readonly IThumbnailService             _thumbnails;
-    private readonly IFileProbeService             _fileProbe;
     private readonly DispatcherTimer               _debounceTimer;
     private readonly Func<string, IObjectDetector> _detectorFactory;
     private readonly ILogger                       _log;
@@ -96,6 +99,66 @@ public partial class JobViewModel : ObservableObject
         }
     }
 
+    public string? Detect
+    {
+        get => Job.Detect;
+        set
+        {
+            if (Job.Detect == value)
+                return;
+            Job.Detect = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string? Mask
+    {
+        get => Job.Mask;
+        set
+        {
+            if (Job.Mask == value)
+                return;
+            Job.Mask = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string OutputFolder
+    {
+        get => Job.OutputFolder;
+        set
+        {
+            if (Job.OutputFolder == value)
+                return;
+            Job.OutputFolder = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool ForceFixed
+    {
+        get => Job.ForceFixed;
+        set
+        {
+            if (Job.ForceFixed == value)
+                return;
+            Job.ForceFixed = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool Debug
+    {
+        get => Job.Debug;
+        set
+        {
+            if (Job.Debug == value)
+                return;
+            Job.Debug = value;
+            OnPropertyChanged();
+        }
+    }
+
     public int? Rotate
     {
         get => Job.Rotate;
@@ -107,11 +170,21 @@ public partial class JobViewModel : ObservableObject
         }
     }
 
-    public JobViewModel(SingleJob job, IThumbnailService thumbnails, IFileProbeService fileProbe, Func<string, IObjectDetector> detectorFactory, ILogger log)
+    public double? OverrideTargetDuration
+    {
+        get => Job.OverrideTargetDuration;
+        set
+        {
+            if (Job.OverrideTargetDuration != null && value != null && Math.Abs(Job.OverrideTargetDuration.Value - value.Value) < 0.01)
+                return;
+            Job.OverrideTargetDuration = value;
+            OnPropertyChanged();
+        }
+    }
+    public JobViewModel(SingleJob job, IThumbnailService thumbnails, Func<string, IObjectDetector> detectorFactory, ILogger log)
     {
         Job              = job;
         _thumbnails      = thumbnails;
-        _fileProbe       = fileProbe;
         _detectorFactory = detectorFactory;
         _log             = log;
 
@@ -139,27 +212,9 @@ public partial class JobViewModel : ObservableObject
             Interval = TimeSpan.FromSeconds(1)
         };
         _debounceTimer.Tick += DebounceTimerTick;
-
-        _ = Task.Run( LoadThumbnailAsync );
     }
 
-    private async Task LoadThumbnailAsync()
-    {
-        try
-        {
-            Probe           = await _fileProbe.ProbeAsync(Job);
-            Thumbnail       = await _thumbnails.CreateThumbnailAsync(Job.InputFile, Probe, rotateDegree: Job.Rotate);
-            SuggestedAction = Probe.Rotation == 0 ? "crop" : "rotate";
-        }
-        catch (Exception ex)
-        {
-            _log.LogError($"Error creating thumbnail for {FileName}: {ex.Message}");
-        }
-
-        await CreatePreview();
-    }
-
-    private async Task CreatePreview()
+    public async Task CreatePreview()
     {
         if ( Probe == null)
             return;
@@ -174,7 +229,7 @@ public partial class JobViewModel : ObservableObject
             var detector = _detectorFactory(Job.Detect ?? "");
             var detections = detector.DetectAll(frame.ToMatContinuous());
 
-            var boxes = detections.Select(x => new Avalonia.Rect(x.box.X, x.box.Y, x.box.Width, x.box.Height)).ToList();
+            var boxes = detections.Select(x => new OpenCvSharp.Rect(x.box.X, x.box.Y, x.box.Width, x.box.Height)).ToList();
             Preview = new PreviewData(frame, boxes, null);
         }
         catch (Exception ex)

@@ -57,13 +57,13 @@ x:DataType="vm:InspectorPaneViewModel">
                 <!-- Mask -->
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="Mask" Width="120"/>
-                    <TextBox Text="{Binding Selected.Job.Mask}" Width="260"/>
+                    <TextBox Text="{Binding Selected.Mask}" Width="260"/>
                 </StackPanel>
 
                 <!-- OutputFolder -->
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="Output Folder" Width="120"/>
-                    <TextBox Text="{Binding Selected.Job.OutputFolder}" Width="260"/>
+                    <TextBox Text="{Binding Selected.OutputFolder}" Width="260"/>
                 </StackPanel>
 
                 <!-- Crop -->
@@ -82,31 +82,23 @@ x:DataType="vm:InspectorPaneViewModel">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="Detect" Width="120"/>
                     <ComboBox ItemsSource="{Binding DetectModes}"
-                              SelectedItem="{Binding Selected.Job.Detect}"
+                              SelectedItem="{Binding Selected.Detect}"
                               Width="160"/>
                 </StackPanel>
 
                 <!-- OverrideTargetDuration -->
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="Target Duration" Width="120"/>
-                    <NumericUpDown Value="{Binding Selected.Job.OverrideTargetDuration}" Width="120"/>
+                    <NumericUpDown Value="{Binding Selected.OverrideTargetDuration}" Width="120"/>
                 </StackPanel>
-
-                <!-- RotateAuto -->
-                <CheckBox Content="Rotate Auto"
-                          IsChecked="{Binding Selected.Job.RotateAuto}"/>
 
                 <!-- ForceFixed -->
                 <CheckBox Content="Force Fixed Duration"
-                          IsChecked="{Binding Selected.Job.ForceFixed}"/>
-
-                <!-- SingleThreaded -->
-                <CheckBox Content="Single Threaded"
-                          IsChecked="{Binding Selected.Job.SingleThreaded}"/>
+                          IsChecked="{Binding Selected.ForceFixed}"/>
 
                 <!-- Debug -->
                 <CheckBox Content="Debug Mode"
-                          IsChecked="{Binding Selected.Job.Debug}"/>
+                          IsChecked="{Binding Selected.Debug}"/>
 
                 <!-- Parameters dictionary -->
                 <TextBlock Text="Advanced Parameters" FontSize="10" Margin="0,10,0,0" FontWeight="Bold"/>
