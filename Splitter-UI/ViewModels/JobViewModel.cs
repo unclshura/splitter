@@ -10,25 +10,15 @@ namespace Splitter_UI.ViewModels;
 
 public partial class JobViewModel : ObservableObject
 {
-    public SingleJob   Job        { get; }
-    public VideoInfo?   Probe     { get; set; }
-    [ObservableProperty]
-    private PreviewData? _preview = new(null, [], null);
-    public ProgressInfo? Progress { get; set; }
+    public SingleJob Job { get; }
     
-    [ObservableProperty]
-    private Bitmap? _thumbnail;
-
-    [ObservableProperty]
-    private string _suggestedAction = "";
-
-    // This updates continuously
-    [ObservableProperty]
-    private double _sliderLiveValue;
-
-    // This updates only on release
-    [ObservableProperty]
-    private double _positionSeconds;
+    [ObservableProperty] private VideoInfo?    _probe;
+    [ObservableProperty] private PreviewData?  _preview = new(null, [], null);
+    [ObservableProperty] private ProgressInfo? _progress;
+    [ObservableProperty] private Bitmap?       _thumbnail;
+    [ObservableProperty] private string        _suggestedAction = "";
+    [ObservableProperty] private double        _sliderLiveValue;
+    [ObservableProperty] private double        _positionSeconds;
 
     public double DurationSeconds => Probe?.Duration ?? 0;
 

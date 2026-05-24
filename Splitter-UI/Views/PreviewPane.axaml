@@ -11,7 +11,9 @@
 
             <local:PreviewCanvas
                 Grid.Row="0"
-                Preview="{Binding Preview}" />
+                Preview="{Binding Preview}"
+                Sar="{Binding Sar}"
+                Dar="{Binding Dar}" />
 
             <Grid Grid.Row="1"
                   ColumnDefinitions="Auto,*,Auto"
