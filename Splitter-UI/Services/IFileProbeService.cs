@@ -2,5 +2,5 @@
 
 public interface IFileProbeService
 {
-    Task<VideoInfo> ProbeAsync(string inputFile);
+    Task<VideoInfo> ProbeAsync(string inputFile, CancellationToken token);
 }

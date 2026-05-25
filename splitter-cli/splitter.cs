@@ -38,7 +38,7 @@ static partial class Program
         var allJobs = new List<SingleTask>();
         foreach ( var job in cmd.Jobs )
         {
-            var jobs = await processor.GenerateJobs(job, cmd.Master.EstimateOnly);
+            var jobs = await processor.GenerateJobs(job, cmd.Master.EstimateOnly, CancellationToken.None);
             allJobs.AddRange(jobs);
         }
 
@@ -49,7 +49,7 @@ static partial class Program
             return 0;
         }
 
-        var success = await processor.ProcessJobs(allJobs, cmd.Master.SingleThreaded);
+        var success = await processor.ProcessJobs(allJobs, cmd.Master.SingleThreaded, CancellationToken.None);
         if (uiTask != null)
         {
             if ( cts != null )

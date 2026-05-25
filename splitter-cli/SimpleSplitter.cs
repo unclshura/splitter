@@ -5,7 +5,7 @@ namespace splitter;
 
 public class SimpleSplitter(int segmentNo, ILogger logger) : LoggingBase(logger, segmentNo), ISegmentProcessor
 {
-    public async Task ProcessSegment(SingleTask job)
+    public async Task ProcessSegment(SingleTask job, CancellationToken token)
     {
         string inputFile                     = job.Job.InputFile;
         string outputFile                    = job.OutputFileName;
@@ -43,19 +43,19 @@ public class SimpleSplitter(int segmentNo, ILogger logger) : LoggingBase(logger,
 
         var psi = new ProcessStartInfo
         {
-            FileName = "ffmpeg",
-            Arguments = args,
+            FileName              = "ffmpeg",
+            Arguments             = args,
             RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
+            UseShellExecute       = false,
+            CreateNoWindow        = true
         };
 
         using var proc = Process.Start(psi) ?? throw new Exception("Failed to start ffmpeg.");
 
         var name = Path.GetFileNameWithoutExtension(outputFile);
-        ShowFFMpegProgress(length, proc, name);
+        await ShowFFMpegProgress(length, proc, name, token);
 
-        proc.WaitForExit();
+        await proc.WaitForExitAsync(token);
         
         ClearProgress(name);
 
@@ -75,12 +75,12 @@ public class SimpleSplitter(int segmentNo, ILogger logger) : LoggingBase(logger,
         };
 
 
-    private void ShowFFMpegProgress(double length, Process proc, string name)
+    private async Task ShowFFMpegProgress(double length, Process proc, string name, CancellationToken token)
     {
         var sw = Stopwatch.StartNew();
 
         string? line;
-        while ((line = proc.StandardError.ReadLine()) != null)
+        while ((line = await proc.StandardError.ReadLineAsync(token)) != null)
         {
             // Look for "time=00:00:03.52"
             var idx = line.IndexOf("time=", StringComparison.OrdinalIgnoreCase);

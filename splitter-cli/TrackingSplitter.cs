@@ -24,7 +24,7 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
             d.Dispose();
     }
 
-    public async Task ProcessSegment(SingleTask job)
+    public async Task ProcessSegment(SingleTask job, CancellationToken token)
     {
         string inputFile                     = job.Job.InputFile;
         string outputFile                    = job.OutputFileName;
@@ -57,11 +57,11 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
         LogInfo($"{name}: src={videoWidth}x{videoHeight} @ {fps:F3}fps, seg=[{start:F3},{length:F3}] enc={encWidth}x{encHeight}");
 
         // 2) Start FFmpeg decode (video only → raw BGR24 to stdout)
-        var decode = StartFfmpegDecode(inputFile, start, length, job.Job.Rotate, job.Job.PlainText);
+        var decode = await StartFfmpegDecode(inputFile, start, length, job.Job.Rotate, job.Job.PlainText, token);
         using var decodeStdout = decode.StandardOutput.BaseStream;
 
         // 3) Start FFmpeg encode (video from stdin + audio from original)
-        var encode = StartFfmpegEncode(
+        var encode = await StartFfmpegEncode(
             inputFile,
             outputFile,
             start,
@@ -70,7 +70,8 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
             encHeight,
             fps,
             ffmpegPassthroughParameters,
-            job.Job.PlainText);
+            job.Job.PlainText,
+            token);
 
         using var encodeStdin = encode.StandardInput.BaseStream;
 
@@ -99,9 +100,11 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
 
         while (frameIndex < totalFrames)
         {
+            token.ThrowIfCancellationRequested();
+
             frameIndex++;
 
-            var read = ReadExact(decodeStdout, inBuffer, 0, inBytes);
+            var read = await ReadExact(decodeStdout, inBuffer, 0, inBytes, token);
             if (read != inBytes)
                 break;
 
@@ -164,7 +167,7 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
 
     // ---------- FFmpeg decode / encode ----------
 
-    private Process StartFfmpegDecode(string inputFile, double start, double length, int? rotate, bool plainText)
+    private async Task<Process> StartFfmpegDecode(string inputFile, double start, double length, int? rotate, bool plainText, CancellationToken token)
     {
         var ss = start .ToString("0.###", CultureInfo.InvariantCulture);
         var t  = length.ToString("0.###", CultureInfo.InvariantCulture);
@@ -192,12 +195,12 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
 
         var fileName = Path.GetFileName(inputFile);
 
-        _ = Task.Run(() =>
+        _ = Task.Run(async () =>
         {
             try
             {
                 string? line;
-                while ((line = p.StandardError.ReadLine()) != null)
+                while ((line = await p.StandardError.ReadLineAsync(token)) != null)
                     if (plainText)
                         LogInfo($"[ffmpeg-decode] {fileName}: {line}");
             }
@@ -223,7 +226,7 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
         return rotateStr;
     }
 
-    private Process StartFfmpegEncode(
+    private async Task<Process> StartFfmpegEncode(
         string inputFile,
         string outputFile,
         double start,
@@ -232,7 +235,8 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
         int height,
         double fps,
         string[] passthrough,
-        bool plainText)
+        bool plainText,
+        CancellationToken token)
     {
         var pass   = passthrough.Length > 0 ? string.Join(" ", passthrough) : "";
         var fpsStr = fps.ToString("0.###", CultureInfo.InvariantCulture);
@@ -266,12 +270,12 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
 
         var fileName = Path.GetFileName(outputFile);
 
-        _ = Task.Run(() =>
+        _ = Task.Run(async () =>
         {
             try
             {
                 string? line;
-                while ((line = p.StandardError.ReadLine()) != null)
+                while ((line = await p.StandardError.ReadLineAsync(token)) != null)
                 {
                     if (plainText)
                         LogInfo($"[ffmpeg-encode] {fileName}: {line}");
@@ -285,12 +289,12 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
 
     // ---------- helpers ----------
 
-    private static int ReadExact(Stream s, byte[] buffer, int offset, int count)
+    private static async Task<int> ReadExact(Stream s, byte[] buffer, int offset, int count, CancellationToken token)
     {
         var total = 0;
         while (total < count)
         {
-            var read = s.Read(buffer, offset + total, count - total);
+            var read = await s.ReadAsync(buffer, offset + total, count - total, token);
             if (read <= 0)
                 break;
             total += read;

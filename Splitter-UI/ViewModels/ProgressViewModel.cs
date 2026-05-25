@@ -1,5 +1,7 @@
 ﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Splitter_UI.Views;
 
 namespace Splitter_UI.ViewModels;
 
@@ -11,6 +13,20 @@ public partial class ProgressViewModel : ObservableObject
     public ObservableCollection<ProgressInfo> Processes { get; } = [];
 
     private Lock _lock = new();
+
+    private MainViewModel _mainModel = null!;
+
+    [RelayCommand]
+    private void Cancel()
+    {
+        _mainModel.Cancel();
+    }
+
+    public void SetMain(MainViewModel mainModel)
+    {
+        _mainModel = mainModel;
+    }
+
     public void ClearProgress(string name, int progressLine)
     {
         lock (_lock)

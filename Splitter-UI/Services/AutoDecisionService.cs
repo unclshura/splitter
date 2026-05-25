@@ -2,12 +2,12 @@
 
 public sealed class AutoDecisionService(IThumbnailService _thumbnails, IFileProbeService _fileProbe, ILogger _log) : IAutoDecisionService
 {
-    public void ApplyAutoDecisions(JobViewModel job)
+    public void ApplyAutoDecisions(JobViewModel job, CancellationToken token)
     {
-        Task.Run(() => Detect(job));
+        Task.Run(() => Detect(job, token));
     }
 
-    private async Task Detect(JobViewModel job)
+    private async Task Detect(JobViewModel job, CancellationToken token)
     {
         try
         {
@@ -16,7 +16,7 @@ public sealed class AutoDecisionService(IThumbnailService _thumbnails, IFileProb
             job.Mask                   = "[NAME]_seg[NN].[EXT]";
             job.OutputFolder           = Path.Combine(Path.GetDirectoryName(job.InputFile)!, "splitter");
 
-            job.Probe           = await _fileProbe.ProbeAsync(job.InputFile);
+            job.Probe           = await _fileProbe.ProbeAsync(job.InputFile, token);
             job.Thumbnail       = await _thumbnails.CreateThumbnailAsync(job.InputFile, job.Probe, rotateDegree: job.Rotate);
 
             if (job.Probe.Width > job.Probe.Height)
@@ -29,7 +29,7 @@ public sealed class AutoDecisionService(IThumbnailService _thumbnails, IFileProb
             else
             {
                 var sampler         = new VideoRotationSampler(null);
-                job.Rotate = await sampler.DetectRotationAsync(job.InputFile, job.Probe.Duration);
+                job.Rotate = await sampler.DetectRotationAsync(job.InputFile, job.Probe.Duration, token);
                 job.Detect = job.Rotate == 0 ? null : "body";
             }
 

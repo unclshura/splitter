@@ -5,7 +5,7 @@ namespace splitter;
 
 public class JobProcessor(ILogger logger) : LoggingBase(logger, 0), IJobProcessor
 {
-    public async Task<List<SingleTask>> GenerateJobs(SingleJob job, bool estimateOnly)
+    public async Task<List<SingleTask>> GenerateJobs(SingleJob job, bool estimateOnly, CancellationToken token)
     {
         var baseName = Path.GetFileNameWithoutExtension(job.InputFile);
 
@@ -18,7 +18,14 @@ public class JobProcessor(ILogger logger) : LoggingBase(logger, 0), IJobProcesso
         if (!Directory.Exists(job.OutputFolder))
             Directory.CreateDirectory(job.OutputFolder);
 
-        var info = await ProbeVideo.Probe(job.InputFile, job.RotateAuto);
+        if (token.IsCancellationRequested)
+            return [];
+
+        var info = await ProbeVideo.Probe(job.InputFile, job.RotateAuto, token);
+
+        if (token.IsCancellationRequested)
+            return [];
+
         if (info.Duration <= 0)
         {
             LogError($"{baseName}: Could not read duration.");
@@ -88,18 +95,18 @@ public class JobProcessor(ILogger logger) : LoggingBase(logger, 0), IJobProcesso
         return jobs;
     }
 
-    public async Task<bool> ProcessJobs(List<SingleTask> tasks, bool singleThreaded)
+    public async Task<bool> ProcessJobs(List<SingleTask> tasks, bool singleThreaded, CancellationToken token)
     {
 
         if (singleThreaded)
         {
             LogInfo("Starting single-threaded splitting...");
-            await RunSingleThreaded(tasks);
+            await RunSingleThreaded(tasks, token);
         }
         else
         {
             LogInfo("Starting multi-threaded splitting...");
-            await RunMultiThreaded(tasks);
+            await RunMultiThreaded(tasks, token);
         }
 
         LogInfo("Done.");
@@ -116,7 +123,7 @@ public class JobProcessor(ILogger logger) : LoggingBase(logger, 0), IJobProcesso
     // Multi-threaded splitting
     // -----------------------------
 
-    private async Task RunMultiThreaded(List<SingleTask> jobs)
+    private async Task RunMultiThreaded(List<SingleTask> jobs, CancellationToken token)
     {
         LogProgress(0.0, TimeSpan.Zero, 0.0);
 
@@ -135,7 +142,7 @@ public class JobProcessor(ILogger logger) : LoggingBase(logger, 0), IJobProcesso
 
         foreach (var job in jobs)
         {
-            await sem.WaitAsync();
+            await sem.WaitAsync(token);
 
             tasks.Add(Task.Run(async () =>
             {
@@ -145,9 +152,12 @@ public class JobProcessor(ILogger logger) : LoggingBase(logger, 0), IJobProcesso
                 {
                     // Acquire a slot ID
                     while (!freeSlots.TryDequeue(out slot))
+                    {
+                        if ( token.IsCancellationRequested)
+                            return; 
                         await Task.Yield();
-
-                    await ProcessSegment(job, slot + 1);
+                    }
+                    await ProcessSegment(job, slot + 1, token);
 
                     var processed = Interlocked.Increment(ref processedSegments);
                     var elapsed   = sw.Elapsed;
@@ -174,21 +184,21 @@ public class JobProcessor(ILogger logger) : LoggingBase(logger, 0), IJobProcesso
     // Single-threaded splitting
     // -----------------------------
 
-    private async Task RunSingleThreaded(List<SingleTask> jobs)
+    private async Task RunSingleThreaded(List<SingleTask> jobs, CancellationToken token)
     {
         foreach (var job in jobs)
         {
-            await ProcessSegment(job, 0);
+            await ProcessSegment(job, 0, token);
         }
 
     }
 
-    private async Task ProcessSegment(SingleTask t, int slot)
+    private async Task ProcessSegment(SingleTask t, int slot, CancellationToken token)
     {
         var processor = t.ProcessorFactory(slot);
         try
         {
-            await processor.ProcessSegment(t);
+            await processor.ProcessSegment(t, token);
         }
         finally
         {

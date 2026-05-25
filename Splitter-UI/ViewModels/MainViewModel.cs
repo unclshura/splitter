@@ -15,6 +15,8 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private bool _transformMode = false;
     private ILogger _logger;
 
+    private CancellationTokenSource? _cancellationTokenSource;
+
     public MainViewModel(
         FileListViewModel fileListVM,
         PreviewPaneViewModel ppVM,
@@ -42,12 +44,19 @@ public partial class MainViewModel : ViewModelBase
             Inspector.Selected = file;
         };
 
+        Progress.SetMain(this);
         Inspector.SetMain(this);
         Inspector.Files = FileList.Files;
     }
 
+    public void Cancel()
+    {
+        _cancellationTokenSource?.Cancel();
+    }
+
     public async Task Start()
     {
+        _cancellationTokenSource = new CancellationTokenSource();
         try
         {
             StatusBar.StatusText = "Processing…";
@@ -59,23 +68,26 @@ public partial class MainViewModel : ViewModelBase
 
             foreach (var file in files)
             {
-                var fileJobs = await _processor.GenerateJobs(file.GetJob(), false);
+                var fileJobs = await _processor.GenerateJobs(file.GetJob(), false, _cancellationTokenSource.Token);
                 jobs.AddRange(fileJobs);
             }
 
-            await _processor.ProcessJobs(jobs, false);
+            await _processor.ProcessJobs(jobs, false, _cancellationTokenSource.Token);
         }
         catch (Exception ex)
         {
             // Handle exception
             StatusBar.StatusText = "Error occurred…";
             _logger.LogError($"Error: {ex.Message}");
+            _cancellationTokenSource.Cancel();
         }
         finally
         {
             StatusBar.StatusText = "Ready…";
             StatusBar.Percent    = 0;
             TransformMode        = false;
+
+            _cancellationTokenSource?.Dispose();
         }
     }
 

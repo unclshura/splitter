@@ -2,5 +2,5 @@
 
 public interface ISegmentProcessor
 {
-    Task ProcessSegment( SingleTask job );
+    Task ProcessSegment( SingleTask job, CancellationToken token);
 }

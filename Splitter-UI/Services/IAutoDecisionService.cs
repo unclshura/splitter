@@ -2,5 +2,5 @@
 
 public interface IAutoDecisionService
 {
-    void ApplyAutoDecisions(JobViewModel job);
+    void ApplyAutoDecisions(JobViewModel job, CancellationToken token);
 }

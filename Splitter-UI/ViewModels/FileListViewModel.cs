@@ -34,7 +34,7 @@ public partial class FileListViewModel : ObservableObject
             var job = new SingleJob { InputFile = path };
             var vm = _factory.Create(job);
             Files.Add(vm);
-            _autoDecisionService.ApplyAutoDecisions(vm);
+            _autoDecisionService.ApplyAutoDecisions(vm, CancellationToken.None);
         }
 
         Selected = Files.LastOrDefault();

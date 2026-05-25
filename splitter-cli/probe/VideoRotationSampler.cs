@@ -6,7 +6,7 @@ public sealed class VideoRotationSampler
 {
     private readonly FrameRotationDetector _detector = new FrameRotationDetector();
 
-    public static int    RotationDetectorSampleCount  = 20;
+    public static int    RotationDetectorSampleCount  = 10;
     public static double RotationDetectorSampleLength = 0.15;  // seconds to decode per probe
     public static int    RotationDetectorFrameWidth   = 320;
     public static int    RotationDetectorFrameHeight  = 180;
@@ -38,7 +38,8 @@ public sealed class VideoRotationSampler
 
     public async Task<int> DetectRotationAsync(
          string inputFile,
-         double videoLengthSeconds)
+         double videoLengthSeconds,
+         CancellationToken token)
     {
         if (videoLengthSeconds <= 0)
             return 0;
@@ -54,7 +55,8 @@ public sealed class VideoRotationSampler
                 t,
                 RotationDetectorSampleLength,
                 RotationDetectorFrameWidth,
-                RotationDetectorFrameHeight);
+                RotationDetectorFrameHeight,
+                token);
 
             if (frame != null && !frame.Empty())
             {
@@ -98,18 +100,21 @@ public sealed class VideoRotationSampler
         double start,
         double length,
         int width,
-        int height)
+        int height,
+        CancellationToken token)
     {
         var p = StartFfmpegDecode(inputFile, start, length, rotate: null, plainText: false);
 
-        int needed = _buffer.Length;
-        int read = 0;
+        var needed = _buffer.Length;
+        var read = 0;
 
         using var stdout = p.StandardOutput.BaseStream;
 
         while (read < needed)
         {
-            int r = await stdout.ReadAsync(_buffer, read, needed - read);
+            token.ThrowIfCancellationRequested();
+
+            var r = await stdout.ReadAsync(_buffer, read, needed - read, token);
             if (r == 0)
                 return null;
             read += r;

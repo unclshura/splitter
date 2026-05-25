@@ -14,20 +14,20 @@ public static class ProbeVideo
         _ffprobeJsonOptions.Converters.Add(new FlexibleLongConverter());
     }
 
-    public static async Task<VideoInfo> Probe(string inputFile, bool detectRotation)
+    public static async Task<VideoInfo> Probe(string inputFile, bool detectRotation, CancellationToken token)
     {
-        var info = ProbeSize(inputFile);
+        var info = await ProbeSize(inputFile, token);
         if (detectRotation)
         {
-            var rotation = await ProbeRotation(inputFile, info.Duration);
+            var rotation = await ProbeRotation(inputFile, info.Duration, token);
             info = info with { Rotation = rotation };
         }
 
         return info;
     }
 
-    private static async Task<int> ProbeRotation(string inputFile, double duration)
-        => await new VideoRotationSampler(null).DetectRotationAsync(inputFile, duration);
+    private static async Task<int> ProbeRotation(string inputFile, double duration, CancellationToken token)
+        => await new VideoRotationSampler(null).DetectRotationAsync(inputFile, duration, token);
 
     private static readonly JsonSerializerOptions _ffprobeJsonOptions =
         new ()
@@ -39,7 +39,7 @@ public static class ProbeVideo
             UnknownTypeHandling         = JsonUnknownTypeHandling.JsonElement
         };
 
-    private static VideoInfo ProbeSize(string inputFile)
+    private static async Task<VideoInfo> ProbeSize(string inputFile, CancellationToken token)
     {
         var args =
             "-v error " +
@@ -61,8 +61,8 @@ public static class ProbeVideo
         using var p = new Process { StartInfo = psi };
         p.Start();
 
-        var json = p.StandardOutput.ReadToEnd();
-        p.WaitForExit();
+        var json = await p.StandardOutput.ReadToEndAsync(token);
+        await p.WaitForExitAsync(token);
 
         var result = JsonSerializer.Deserialize<FfprobeResult>(json, _ffprobeJsonOptions);
         var stream = result?.Streams?.FirstOrDefault();
