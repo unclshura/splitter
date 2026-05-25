@@ -51,11 +51,11 @@ public sealed class SpectreConsoleLogger : ILogger, IDisposable
 
     // ---- ILogger ----
 
-    public void ClearProgress(int progressLevel)
+    public void ClearProgress(string name, int progressLine)
     {
         lock (_sync)
         {
-            _progress[progressLevel] = ProgressEntry.Empty;
+            _progress[progressLine] = ProgressEntry.Empty;
         }
     }
 

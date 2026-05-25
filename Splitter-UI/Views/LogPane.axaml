@@ -2,15 +2,30 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     x:Class="Splitter_UI.Views.LogPane"
+    xmlns:conv="clr-namespace:Splitter_UI.Converters"
     xmlns:vm="clr-namespace:Splitter_UI.ViewModels"
     x:DataType="vm:LogPaneViewModel">
 
+<UserControl.Resources>
+    <conv:ConsoleColorToBrushConverter x:Key="ConsoleColorToBrushConverter"/>
+</UserControl.Resources>
+
     <Border Background="#111" Padding="8">
-        <ScrollViewer>
+        <ScrollViewer x:Name="Scroller">
             <ItemsControl ItemsSource="{Binding Logs}">
                 <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="12"/>
+                    <DataTemplate x:DataType="vm:LogEntry">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="[" FontFamily="Consolas" FontSize="12"/>
+                            <TextBlock Text="{Binding Prefix}"
+                                       FontFamily="Consolas"
+                                       FontSize="12"
+                                       Foreground="{Binding Color, Converter={StaticResource ConsoleColorToBrushConverter}}"/>
+                            <TextBlock Text="] " FontFamily="Consolas" FontSize="12"/>
+                            <TextBlock Text="{Binding Message}"
+                                       FontFamily="Consolas"
+                                       FontSize="12"/>
+                        </StackPanel>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>

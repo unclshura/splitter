@@ -1,6 +1,4 @@
-﻿using OpenCvSharp.Dnn;
-
-namespace Splitter_UI.Services;
+﻿namespace Splitter_UI.Services;
 
 public sealed class AutoDecisionService(IThumbnailService _thumbnails, IFileProbeService _fileProbe, ILogger _log) : IAutoDecisionService
 {
@@ -34,6 +32,8 @@ public sealed class AutoDecisionService(IThumbnailService _thumbnails, IFileProb
                 job.Rotate = await sampler.DetectRotationAsync(job.InputFile, job.Probe.Duration);
                 job.Detect = job.Rotate == 0 ? null : "body";
             }
+
+            _log.LogInfo(job.ToString());
         }
         catch (Exception ex)
         {

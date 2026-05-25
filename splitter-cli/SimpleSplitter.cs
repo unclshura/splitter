@@ -57,7 +57,7 @@ public class SimpleSplitter(int segmentNo, ILogger logger) : LoggingBase(logger,
 
         proc.WaitForExit();
         
-        ClearProgress();
+        ClearProgress(name);
 
         if (proc.ExitCode != 0)
             LogError($"Segment {name} FFmpeg encoding failed");

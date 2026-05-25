@@ -67,47 +67,10 @@
 
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:JobViewModel">
-                            <Border x:Name="ItemRoot"
-                                    Margin="0"
-                                    Padding="0"
-                                    CornerRadius="4"
-                                    Background="#2A2A2A">
-                                <StackPanel MinWidth="160" MaxWidth="160">
-
-                                    <Border Width="160" Height="90" ClipToBounds="True">
-                                        <Grid>
-                                            <Image Source="{Binding Thumbnail}"
-                                                   Stretch="UniformToFill"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"/>
-
-                                            <TextBlock FontFamily="{StaticResource FontAwesome}"
-                                                       Text="{Binding Rotate, Converter={StaticResource ActionToIconConverter}}"
-                                                       FontSize="12"
-                                                       HorizontalAlignment="Right"
-                                                       Foreground="LimeGreen"/>
-                                            <TextBlock FontFamily="{StaticResource FontAwesome}"
-                                                       Text="{Binding Rotate, Converter={StaticResource RotationAngleToIconConverter}}"
-                                                       FontSize="12"
-                                                       HorizontalAlignment="Left"
-                                                       Foreground="LimeGreen"/>
-                                        </Grid>
-                                    </Border>
-
-                                    <TextBlock Text="{Binding FileName}"
-                                               TextWrapping="Wrap"
-                                               Margin="0,6,0,0"
-                                               FontSize="10"/>
-
-                                    <ProgressBar MinWidth="160"
-                                                 MaxWidth="160"
-                                                 Height="10"
-                                                 Margin="0,4,0,0"
-                                                 Value="{Binding Progress.Percent}" />
-                                </StackPanel>
-                            </Border>
+                            <views:JobListItemView/>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
+
                 </ListBox>
             </ScrollViewer>
         </Grid>

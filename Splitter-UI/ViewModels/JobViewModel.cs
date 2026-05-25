@@ -14,7 +14,6 @@ public partial class JobViewModel : ObservableObject
     
     [ObservableProperty] private VideoInfo?    _probe;
     [ObservableProperty] private PreviewData?  _preview = new(null, [], null, new(0.5f, 0.5f));
-    [ObservableProperty] private ProgressInfo? _progress;
     [ObservableProperty] private Bitmap?       _thumbnail;
     [ObservableProperty] private double        _sliderLiveValue;
     [ObservableProperty] private double        _positionSeconds;
@@ -36,7 +35,7 @@ public partial class JobViewModel : ObservableObject
         ? $"{Probe.Width}x{Probe.Height}, {TimeSpan.FromSeconds(Probe.Duration).ToString(@"hh\:mm\:ss")}), FPS: {Probe.Fps:F2}, Bitrate: {Probe.Bitrate/1024/1024:F2} MB/s"
         : "";
 
-    public override string ToString() => $"{FileName} - {TextDesc}";
+    public override string ToString() => $"{FileName}: {TextDesc}";
 
     public ObservableCollection<ParameterEntry> ParametersList { get; }
         = new();

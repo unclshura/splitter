@@ -2,7 +2,7 @@
 
 public interface ILogger
 {
-    void ClearProgress(int progressLevel);
+    void ClearProgress(string name, int progressLine);
     void DrawProgress(string name, int progressLine, double progress, TimeSpan eta, double speed);
     void Log(string prefix, ConsoleColor color, string msg);
     

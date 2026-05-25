@@ -4,15 +4,26 @@ namespace Splitter_UI.ViewModels;
 
 public partial class MainViewModel : ViewModelBase
 {
-    public FileListViewModel FileList { get; }
-    public PreviewPaneViewModel Preview { get; } = new PreviewPaneViewModel();
-    public InspectorPaneViewModel Inspector { get; } = new InspectorPaneViewModel();
-    public StatusBarViewModel StatusBar { get; } = new StatusBarViewModel();
-    public LogPaneViewModel LogPane { get; } = new LogPaneViewModel();
+    public FileListViewModel FileList       { get; }
+    public PreviewPaneViewModel Preview     { get; }
+    public InspectorPaneViewModel Inspector { get; }
+    public StatusBarViewModel StatusBar     { get; }
+    public LogPaneViewModel LogPane         { get; }
 
-    public MainViewModel(IFileJobFactory fileJobFactory, IAutoDecisionService autoDecisionService)
+    public MainViewModel(
+        IFileJobFactory fileJobFactory,
+        IAutoDecisionService autoDecisionService,
+        PreviewPaneViewModel ppVM,
+        InspectorPaneViewModel iVM,
+        LogPaneViewModel lpVM,
+        StatusBarViewModel sbVM
+        )
     {
-        FileList = new FileListViewModel(fileJobFactory, autoDecisionService);
+        FileList  = new FileListViewModel(fileJobFactory, autoDecisionService);
+        Preview   = ppVM;
+        Inspector = iVM;
+        LogPane   = lpVM;
+        StatusBar = sbVM;
         // Wire selection → preview + inspector
         FileList.SelectedFileChanged += file =>
         {

@@ -1,7 +1,11 @@
 ﻿namespace splitter.tui;
 
-public abstract class LoggingBase(ILogger _logger, int _progressLine)
+public abstract class LoggingBase(ILogger logger, int _progressLine)
 {
+#pragma warning disable IDE1006 // Naming Styles
+    protected ILogger _logger = logger;
+#pragma warning restore IDE1006 // Naming Styles
+
     protected void Log(string level, ConsoleColor color, string message)
         => _logger.Log(level, color, message);
 
@@ -17,6 +21,6 @@ public abstract class LoggingBase(ILogger _logger, int _progressLine)
     protected void DrawProgress(string name, double percent, TimeSpan eta, double fps)
         => _logger.DrawProgress(name, _progressLine, percent, eta, fps);
 
-    protected void ClearProgress()
-        => _logger.ClearProgress(_progressLine);
+    protected void ClearProgress(string name)
+        => _logger.ClearProgress(name,_progressLine);
 }

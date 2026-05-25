@@ -152,7 +152,7 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
         try { if (!decode.HasExited) decode.Kill(entireProcessTree: true); } catch { }
         try { if (!decode.HasExited) await decode.WaitForExitAsync(); } catch { }
 
-        ClearProgress();
+        ClearProgress(name);
 
 
         if (encode.ExitCode != 0)

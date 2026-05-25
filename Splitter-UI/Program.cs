@@ -23,13 +23,15 @@ internal sealed class Program
     {
         var services = new ServiceCollection();
 
+        var logPaveVM = new LogPaneViewModel();
         // ViewModels
         services.AddTransient<MainViewModel>();
         services.AddTransient<FileListViewModel>();
         services.AddTransient<PreviewPaneViewModel>();
         services.AddTransient<InspectorPaneViewModel>();
-        services.AddTransient<StatusBarViewModel>();
-        services.AddTransient<LogPaneViewModel>();
+        services.AddSingleton<StatusBarViewModel>();
+        services.AddSingleton<LogPaneViewModel>(logPaveVM);
+        services.AddSingleton<ILogService>(logPaveVM);
 
         // splitter services
         services.AddSingleton<UltraFaceDetector>();
@@ -51,8 +53,6 @@ internal sealed class Program
         services.AddTransient<IFileProbeService,    FileProbeService>();
         services.AddTransient<IThumbnailService,    ThumbnailService>();
         services.AddSingleton<IAutoDecisionService, AutoDecisionService>();
-        services.AddSingleton<IProcessingService,   ProcessingService>();
-        services.AddSingleton<ILogService,          LogService>();
 
         services.AddSingleton<IFileJobFactory, FileJobFactory>();
 

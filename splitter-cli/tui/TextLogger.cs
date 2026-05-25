@@ -13,6 +13,6 @@ public class TextLogger() : ILogger
     }
 
     public void DrawProgress(string name, int progressLine, double progress, TimeSpan eta, double speed) {}
-    public void ClearProgress(int progressLevel){}
+    public void ClearProgress(string name, int progressLine) {}
 
 }
