@@ -39,4 +39,21 @@ public partial class FileListViewModel : ObservableObject
 
         Selected = Files.LastOrDefault();
     }
+
+    internal void DeleteSelected()
+    {
+        if (SelectedFiles.Any()) 
+        {
+            var toDelete = SelectedFiles.ToList();
+            foreach (var item in toDelete)
+                Files.Remove(item);
+        }
+        else if ( Selected != null)
+        {
+            var sel = Selected;
+            Files.Remove(sel);
+        }
+
+        Selected = Files.LastOrDefault();
+    }
 }

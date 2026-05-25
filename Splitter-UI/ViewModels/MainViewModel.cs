@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.Input;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Splitter_UI.ViewModels;
 
@@ -9,41 +9,74 @@ public partial class MainViewModel : ViewModelBase
     public InspectorPaneViewModel Inspector { get; }
     public StatusBarViewModel StatusBar     { get; }
     public LogPaneViewModel LogPane         { get; }
+    public ProgressViewModel Progress       { get; }
+    private IJobProcessor _processor = null!;
+
+    [ObservableProperty] private bool _transformMode = false;
+    private ILogger _logger;
 
     public MainViewModel(
-        IFileJobFactory fileJobFactory,
-        IAutoDecisionService autoDecisionService,
+        FileListViewModel fileListVM,
         PreviewPaneViewModel ppVM,
         InspectorPaneViewModel iVM,
         LogPaneViewModel lpVM,
-        StatusBarViewModel sbVM
+        StatusBarViewModel sbVM,
+        ProgressViewModel pVM,
+        IJobProcessor processor,
+        ILogger logger
         )
     {
-        FileList  = new FileListViewModel(fileJobFactory, autoDecisionService);
-        Preview   = ppVM;
-        Inspector = iVM;
-        LogPane   = lpVM;
-        StatusBar = sbVM;
-        // Wire selection → preview + inspector
+        FileList   = fileListVM;
+        Preview    = ppVM;
+        Inspector  = iVM;
+        LogPane    = lpVM;
+        StatusBar  = sbVM;
+        Progress   = pVM;
+        _processor = processor;
+        _logger = logger;
+
+        // Wire selection -> preview + inspector
         FileList.SelectedFileChanged += file =>
         {
             Preview.Selected = file;
             Inspector.Selected = file;
         };
 
+        Inspector.SetMain(this);
         Inspector.Files = FileList.Files;
     }
 
-    [RelayCommand]
-    private void Start()
+    public async Task Start()
     {
-        StatusBar.StatusText = "Processing…";
-        // call IProcessingService here
+        try
+        {
+            StatusBar.StatusText = "Processing…";
+            StatusBar.Percent    = 0;
+            TransformMode        = true;
+
+            var files = FileList.Files.ToList();
+            var jobs = new List<SingleTask>();
+
+            foreach (var file in files)
+            {
+                var fileJobs = await _processor.GenerateJobs(file.GetJob(), false);
+                jobs.AddRange(fileJobs);
+            }
+
+            await _processor.ProcessJobs(jobs, false);
+        }
+        catch (Exception ex)
+        {
+            // Handle exception
+            StatusBar.StatusText = "Error occurred…";
+            _logger.LogError($"Error: {ex.Message}");
+        }
+        finally
+        {
+            StatusBar.StatusText = "Ready…";
+            StatusBar.Percent    = 0;
+            TransformMode        = false;
+        }
     }
 
-    [RelayCommand]
-    private void Stop()
-    {
-        StatusBar.StatusText = "Stopped";
-    }
 }

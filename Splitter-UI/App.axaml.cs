@@ -8,7 +8,9 @@ namespace Splitter_UI;
 
 public partial class App : Application
 {
-    private readonly ServiceProvider _provider;
+    private readonly ServiceProvider _provider = null!;
+
+    public App() { }
 
     public App(ServiceProvider provider)
     {

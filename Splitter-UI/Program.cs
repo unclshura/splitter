@@ -30,6 +30,7 @@ internal sealed class Program
         services.AddTransient<PreviewPaneViewModel>();
         services.AddTransient<InspectorPaneViewModel>();
         services.AddSingleton<StatusBarViewModel>();
+        services.AddSingleton<ProgressViewModel>();
         services.AddSingleton<LogPaneViewModel>(logPaveVM);
         services.AddSingleton<ILogService>(logPaveVM);
 
@@ -48,6 +49,7 @@ internal sealed class Program
             };
         });
         services.AddSingleton<ILogger, GlobalLogger>();
+        services.AddSingleton<IJobProcessor, JobProcessor>();
 
         // Domain services (your pipeline)
         services.AddTransient<IFileProbeService,    FileProbeService>();

@@ -12,13 +12,13 @@
                        Text="{Binding StatusText}" />
 
             <ProgressBar Grid.Column="1"
-                         Width="200" Height="16"
+                         Width="200"
+                         Height="16"
+                         Minimum="0"
+                         Maximum="1"
                          VerticalAlignment="Center"
                          Value="{Binding Percent}" />
 
-            <TextBlock Grid.Column="2"
-                       VerticalAlignment="Center"
-                       Text="{Binding ThreadInfo}" />
         </Grid>
     </Border>
 </UserControl>

@@ -5,7 +5,9 @@
     xmlns:views="clr-namespace:Splitter_UI.Views"
     xmlns:conv="clr-namespace:Splitter_UI.Converters"
     x:Class="Splitter_UI.Views.FileListView"
-    x:DataType="vm:FileListViewModel">
+    x:DataType="vm:FileListViewModel"
+    KeyDown="OnKeyDown"
+    Focusable="True">
 
     <UserControl.Resources>
         <conv:ZeroToBoolConverter x:Key="ZeroToBoolConverter"/>

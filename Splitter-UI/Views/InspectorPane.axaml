@@ -147,10 +147,21 @@ x:DataType="vm:InspectorPaneViewModel">
                     <TextBox Text="{Binding Selected.PassthroughText}" Width="260"/>
                 </StackPanel>
 
-                <Button Content="Apply to Selected"
-                        Command="{Binding ApplyOverridesCommand}"
-                        HorizontalAlignment="Right"
-                        Margin="0,10,0,0"/>
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Spacing="8"
+                            Margin="0,10,0,0">
+
+                    <Button Content="Apply to Selected"
+                            Command="{Binding ApplyOverridesCommand}"/>
+
+                    <Button Content="Transform all"
+                            Background="#AA0000"
+                            Foreground="White"
+                            Command="{Binding TransformAllCommand}"/>
+
+                </StackPanel>
+
 
             </StackPanel>
         </ScrollViewer>

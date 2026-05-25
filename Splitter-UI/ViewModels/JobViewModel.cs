@@ -11,7 +11,9 @@ namespace Splitter_UI.ViewModels;
 public partial class JobViewModel : ObservableObject
 {
     private SingleJob Job { get; }
-    
+
+    public SingleJob GetJob() => Job;
+
     [ObservableProperty] private VideoInfo?    _probe;
     [ObservableProperty] private PreviewData?  _preview = new(null, [], null, new(0.5f, 0.5f));
     [ObservableProperty] private Bitmap?       _thumbnail;
@@ -366,4 +368,5 @@ public partial class JobViewModel : ObservableObject
     {
         Task.Run(CreatePreview);
     }
+
 }

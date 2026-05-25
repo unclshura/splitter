@@ -17,6 +17,13 @@ public partial class InspectorPaneViewModel : ObservableObject
         ];
 
     [RelayCommand]
+    private void TransformAll()
+    {
+        _ = _main.Start();
+    }
+
+
+    [RelayCommand]
     private void ApplyOverrides()
     {
         if (Selected is null)
@@ -43,11 +50,15 @@ public partial class InspectorPaneViewModel : ObservableObject
     public IRelayCommand RotateLeftCommand { get; }
     public IRelayCommand RotateRightCommand { get; }
 
+    private MainViewModel _main = null!;
+
     public InspectorPaneViewModel()
     {
         RotateLeftCommand = new RelayCommand(() => AdjustRotation(-90));
         RotateRightCommand = new RelayCommand(() => AdjustRotation(+90));
     }
+
+    public void SetMain(MainViewModel main) => _main = main;
 
     private void AdjustRotation(int delta)
     {

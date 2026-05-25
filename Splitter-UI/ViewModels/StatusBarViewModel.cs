@@ -10,6 +10,4 @@ public partial class StatusBarViewModel : ObservableObject
     [ObservableProperty]
     private double _percent;
 
-    [ObservableProperty]
-    private string _threadInfo = "Threads: 0/0";
 }

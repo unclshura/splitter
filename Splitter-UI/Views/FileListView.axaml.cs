@@ -21,6 +21,14 @@ public partial class FileListView : UserControl
         InitializeComponent();
     }
 
+    private void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Delete)
+        {
+            if (DataContext is FileListViewModel vm)
+                vm.DeleteSelected();
+        }
+    }
     private void OnDragEnter(object? sender, DragEventArgs e)
     {
         IsDragActive = true;
