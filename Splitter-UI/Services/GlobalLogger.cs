@@ -1,6 +1,4 @@
-﻿using splitter.tui;
-
-namespace Splitter_UI.Services;
+﻿namespace Splitter_UI.Services;
 
 internal class GlobalLogger(ILogService _logService) : ILogger
 {

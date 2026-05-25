@@ -1,6 +1,5 @@
 ﻿using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
-using splitter.algo;
 
 namespace Splitter_UI.ViewModels;
 

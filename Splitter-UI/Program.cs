@@ -1,8 +1,6 @@
 ﻿using Avalonia;
 using Avalonia.Media;
 using Microsoft.Extensions.DependencyInjection;
-using splitter.algo;
-using splitter.tui;
 
 namespace Splitter_UI;
 

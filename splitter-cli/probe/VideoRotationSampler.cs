@@ -1,5 +1,4 @@
-﻿using OpenCvSharp;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 
 namespace splitter.probe;
 

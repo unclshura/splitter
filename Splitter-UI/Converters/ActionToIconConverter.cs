@@ -7,12 +7,15 @@ public sealed class ActionToIconConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        return value switch
-        {
-            "crop"   => "\uf125", // FA7 crop
-            "rotate" => "\uf2f1", // FA7 rotate
-            _        => null
-        };
+        if (value == null)
+            return null;
+
+        var p = System.Convert.ToInt32(value);
+        
+        return p == 0 
+            ? "\uf125" // FA7 crop
+            : "\uf2f1" // FA7 rotate
+            ;
     }
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)

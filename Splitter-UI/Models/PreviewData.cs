@@ -1,6 +1,4 @@
-﻿using Avalonia;
-
-namespace Splitter_UI.Models;
+﻿namespace Splitter_UI.Models;
 
 public class PreviewData
 {

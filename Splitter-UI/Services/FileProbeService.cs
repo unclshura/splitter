@@ -1,6 +1,4 @@
-﻿using splitter.probe;
-
-namespace Splitter_UI.Services;
+﻿namespace Splitter_UI.Services;
 
 public sealed class FileProbeService : IFileProbeService
 {

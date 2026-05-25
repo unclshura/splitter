@@ -2,7 +2,6 @@
 using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
-using splitter.probe;
 
 namespace Splitter_UI.Services;
 

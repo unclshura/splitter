@@ -1,5 +1,4 @@
 ﻿using Avalonia.Media.Imaging;
-using splitter.probe;
 
 namespace Splitter_UI.Services;
 

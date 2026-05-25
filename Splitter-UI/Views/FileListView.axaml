@@ -82,7 +82,7 @@
                                                    VerticalAlignment="Center"/>
 
                                             <TextBlock FontFamily="{StaticResource FontAwesome}"
-                                                       Text="{Binding SuggestedAction, Converter={StaticResource ActionToIconConverter}}"
+                                                       Text="{Binding Rotate, Converter={StaticResource ActionToIconConverter}}"
                                                        FontSize="12"
                                                        HorizontalAlignment="Right"
                                                        Foreground="LimeGreen"/>

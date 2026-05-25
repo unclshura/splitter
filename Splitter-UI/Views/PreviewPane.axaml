@@ -14,7 +14,7 @@
                 Preview="{Binding Preview}"
                 Sar="{Binding Sar}"
                 RotateAngle="{Binding Rotate}"
-                GravitateTo="{Binding GravitateTo}"/>
+                GravitateTo="{Binding GravitateTo, Mode=TwoWay}"/>
 
             <Grid Grid.Row="1"
                   ColumnDefinitions="Auto,*,Auto"

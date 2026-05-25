@@ -2,9 +2,6 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using Spectre.Console;
 using splitter;
-using splitter.algo;
-using splitter.probe;
-using splitter.tui;
 
 static partial class Program
 {

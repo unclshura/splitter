@@ -1,7 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Media.Imaging;
-using OpenCvSharp;
 
 namespace Splitter_UI.Services;
 

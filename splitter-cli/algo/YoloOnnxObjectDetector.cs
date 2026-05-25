@@ -1,8 +1,6 @@
 ﻿using System.Runtime.CompilerServices;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
-using OpenCvSharp;
-using splitter.tui;
 
 namespace splitter.algo;
 

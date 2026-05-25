@@ -1,7 +1,4 @@
-﻿using OpenCvSharp;
-using splitter.algo;
-
-namespace Splitter_UI.Services;
+﻿namespace Splitter_UI.Services;
 
 internal class DummyDetector : IObjectDetector
 {

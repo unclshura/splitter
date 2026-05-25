@@ -1,6 +1,4 @@
-﻿using OpenCvSharp;
-
-namespace splitter.probe;
+﻿namespace splitter.probe;
 
 public sealed class FrameRotationDetector
 {

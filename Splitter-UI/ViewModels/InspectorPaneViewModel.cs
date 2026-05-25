@@ -16,11 +16,6 @@ public partial class InspectorPaneViewModel : ObservableObject
             "face", "body", "none"
         ];
 
-    public List<int> RotationAngles =>
-        [
-            0, 90, 180, 270
-        ];
-
     [RelayCommand]
     private void ApplyOverrides()
     {

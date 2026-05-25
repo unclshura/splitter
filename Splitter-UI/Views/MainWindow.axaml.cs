@@ -1,5 +1,3 @@
-using Avalonia.Controls;
-
 namespace Splitter_UI.Views;
 
 public partial class MainWindow : Avalonia.Controls.Window

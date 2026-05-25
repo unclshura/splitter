@@ -1,6 +1,4 @@
-﻿using OpenCvSharp;
-
-namespace splitter.algo;
+﻿namespace splitter.algo;
 
 public enum TrackState
 {

@@ -1,7 +1,4 @@
-﻿using OpenCvSharp;
-using splitter.algo;
-
-namespace Splitter_UI.Services;
+﻿namespace Splitter_UI.Services;
 
 public class SingleThreadedDetector<T>(IObjectDetector _detector) : IObjectDetector
     where T : IObjectDetector

@@ -5,9 +5,6 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using splitter.algo;
-using splitter.probe;
-using splitter.tui;
 
 namespace Splitter_UI.ViewModels;
 
@@ -19,7 +16,6 @@ public partial class JobViewModel : ObservableObject
     [ObservableProperty] private PreviewData?  _preview = new(null, [], null, new(0.5f, 0.5f));
     [ObservableProperty] private ProgressInfo? _progress;
     [ObservableProperty] private Bitmap?       _thumbnail;
-    [ObservableProperty] private string        _suggestedAction = "";
     [ObservableProperty] private double        _sliderLiveValue;
     [ObservableProperty] private double        _positionSeconds;
 
@@ -217,6 +213,13 @@ public partial class JobViewModel : ObservableObject
             entry.PropertyChanged += OnParameterChanged;
         }
 
+        PropertyChanged += (sender, e) =>
+        {
+            if (e.PropertyName == nameof(Probe))
+            {
+                OnPropertyChanged(nameof(DurationSeconds));
+            }
+        };
         ParametersList.CollectionChanged += OnParametersCollectionChanged;
 
         StepForwardCommand  = new RelayCommand(StepForward);
