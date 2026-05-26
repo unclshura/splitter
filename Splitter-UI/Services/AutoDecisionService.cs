@@ -26,12 +26,12 @@ public sealed class AutoDecisionService(IThumbnailService _thumbnails, IFileProb
 
                 CalculateCrop(job);
             }
-            else
-            {
-                var sampler         = new VideoRotationSampler(null);
-                job.Rotate = await sampler.DetectRotationAsync(job.InputFile, job.Probe.Duration, token);
-                job.Detect = job.Rotate == 0 ? null : "body";
-            }
+            //else
+            //{
+            //    var sampler         = new VideoRotationSampler(null);
+            //    job.Rotate = await sampler.DetectRotationAsync(job.InputFile, job.Probe.Duration, token);
+            //    job.Detect = job.Rotate == 0 ? null : "body";
+            //}
 
             _log.LogInfo(job.ToString());
         }

@@ -87,29 +87,7 @@ public static class ProbeVideo
 
         var bitrate = stream?.Bit_rate ?? 0.0;
 
-        var sar = ParseAspectRatio(stream?.Sample_aspect_ratio);
-        var dar = ParseAspectRatio(stream?.Display_aspect_ratio);
-
-        return new VideoInfo(duration, width, height, fps, bitrate, sar, dar);
-    }
-
-    private static Point2f ParseAspectRatio(string? sar)
-    {
-        if (string.IsNullOrWhiteSpace(sar))
-            return new Point2f(1.0f, 1.0f);
-
-        var parts = sar.Split(':');
-        if (parts.Length != 2)
-            return new(1.0f, 1.0f);
-
-        if (float.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var num) &&
-            float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var den) &&
-            den != 0)
-        {
-            return new(num, den);
-        }
-
-        return new(1.0f, 1.0f);
+        return new VideoInfo(duration, width, height, fps, bitrate, stream?.Sample_aspect_ratio, stream?.Display_aspect_ratio);
     }
 
 }

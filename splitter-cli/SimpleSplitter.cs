@@ -7,40 +7,77 @@ public class SimpleSplitter(int segmentNo, ILogger logger) : LoggingBase(logger,
 {
     public async Task ProcessSegment(SingleTask job, CancellationToken token)
     {
-        string inputFile                     = job.Job.InputFile;
-        string outputFile                    = job.OutputFileName;
-        double start                         = job.SegmentStart;
-        double length                        = job.SegmentLength;
-        int videoWidth                       = job.Info.Width;
-        int videoHeight                      = job.Info.Height;
-        double fps                           = job.Info.Fps;
-        string[] ffmpegPassthroughParameters = job.Job.Passthrough;
-        
-        var pass = ffmpegPassthroughParameters.Length > 0 ? string.Join(" ", ffmpegPassthroughParameters) : "";
+        string inputFile  = job.Job.InputFile;
+        string outputFile = job.OutputFileName;
+        double start      = job.SegmentStart;
+        double length     = job.SegmentLength;
+
+        var rotation = GetRotationFilter(job.Job.Rotate);
 
         string args;
-        var rotation = GetRotationFilter(job.Job.Rotate);
+
         if (rotation == null)
         {
+            // Copy path: keep original SAR/DAR exactly as in source
             args =
                 $"-ss {start.ToString(CultureInfo.InvariantCulture)} " +
                 $"-i \"{inputFile}\" " +
                 $"-t {length.ToString(CultureInfo.InvariantCulture)} " +
-                $"-c copy {pass} \"{outputFile}\" -y";
+                $"-c copy {string.Join(" ", job.Job.Passthrough)} " +
+                $"\"{outputFile}\" -y";
         }
         else
         {
-            // Rotation → must re-encode
+            var sarArg = "";
+            var darArg = "";
+
+            var sar = job.Info.SampleAspectRatio; // e.g. "4:3"
+            if (sar != null)
+            {
+                // Rotation path: must re-encode and recompute DAR
+
+                long sarNum = Convert.ToInt64(job.Info.Sar.X);
+                long sarDen = Convert.ToInt64(job.Info.Sar.Y);
+
+                // After rotation, width/height swap
+                int w = job.Info.Width;
+                int h = job.Info.Height;
+
+                if (job.Job.Rotate == 90 || job.Job.Rotate == 270)
+                {
+                    (w, h) = (h, w);
+                }
+
+                // Compute DAR = (w * sarNum) : (h * sarDen)
+                var darNum = w * sarNum;
+                var darDen = h * sarDen;
+
+                // Reduce fraction
+                long Gcd(long a, long b)
+                {
+                    while (b != 0) (a, b) = (b, a % b);
+                    return a;
+                }
+                var g = Gcd(darNum, darDen);
+                darNum /= g;
+                darDen /= g;
+
+                sarArg = $"-vf \"{rotation},setsar={sarNum}:{sarDen}\" ";
+                darArg = $"-aspect {darNum}:{darDen} ";
+            }
+            else
+                sarArg = $"-vf \"{rotation}\" ";
+
             args =
                 $"-ss {start.ToString(CultureInfo.InvariantCulture)} " +
                 $"-i \"{inputFile}\" " +
                 $"-t {length.ToString(CultureInfo.InvariantCulture)} " +
-                $"-vf \"{rotation}\" " +
+                sarArg + darArg +
                 "-c:v h264_nvenc -preset p4 -b:v 8M -pix_fmt yuv420p " +
                 "-c:a copy " +
-                $"{pass} \"{outputFile}\" -y";
+                $"{string.Join(" ", job.Job.Passthrough)} " +
+                $"\"{outputFile}\" -y";
         }
-
         var psi = new ProcessStartInfo
         {
             FileName              = "ffmpeg",
@@ -56,7 +93,7 @@ public class SimpleSplitter(int segmentNo, ILogger logger) : LoggingBase(logger,
         await ShowFFMpegProgress(length, proc, name, token);
 
         await proc.WaitForExitAsync(token);
-        
+
         ClearProgress(name);
 
         if (proc.ExitCode != 0)
@@ -64,6 +101,7 @@ public class SimpleSplitter(int segmentNo, ILogger logger) : LoggingBase(logger,
         else
             LogInfo($"Segment {name} processing completed");
     }
+
 
     string? GetRotationFilter(int? degrees) =>
         degrees switch
@@ -74,6 +112,20 @@ public class SimpleSplitter(int segmentNo, ILogger logger) : LoggingBase(logger,
             _ => null
         };
 
+    private static long Gcd(long a, long b)
+    {
+        a = Math.Abs(a);
+        b = Math.Abs(b);
+
+        while (b != 0)
+        {
+            long t = b;
+            b = a % b;
+            a = t;
+        }
+
+        return a;
+    }
 
     private async Task ShowFFMpegProgress(double length, Process proc, string name, CancellationToken token)
     {

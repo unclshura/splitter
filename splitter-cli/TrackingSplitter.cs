@@ -68,7 +68,7 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
             length,
             encWidth,
             encHeight,
-            fps,
+            job.Info,
             ffmpegPassthroughParameters,
             job.Job.PlainText,
             token);
@@ -231,17 +231,36 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
         string outputFile,
         double start,
         double length,
-        int width,
-        int height,
-        double fps,
+        int width, int height,
+        VideoInfo info,
         string[] passthrough,
         bool plainText,
         CancellationToken token)
     {
         var pass   = passthrough.Length > 0 ? string.Join(" ", passthrough) : "";
-        var fpsStr = fps.ToString("0.###", CultureInfo.InvariantCulture);
+        var fpsStr = info.Fps.ToString("0.###", CultureInfo.InvariantCulture);
         var ss     = start.ToString("0.###", CultureInfo.InvariantCulture);
         var t      = length.ToString("0.###", CultureInfo.InvariantCulture);
+        var sarArg = !string.IsNullOrWhiteSpace(info.SampleAspectRatio)
+            ? $"-vf setsar={info.SampleAspectRatio} "
+            : "";
+
+        string darArg    = "";
+
+        if (info.Sar is { } s)
+        {
+            // compute DAR from output size and SAR
+            var darNum = width * s.X;
+            var darDen = height * s.Y;
+
+            // clamp to int and reduce
+            int dn = (int)Math.Min(int.MaxValue, Math.Max(int.MinValue, darNum));
+            int dd = (int)Math.Min(int.MaxValue, Math.Max(int.MinValue, darDen));
+            ReduceFraction(ref dn, ref dd);
+
+            if (dn > 0 && dd > 0)
+                darArg = $"-aspect {dn}:{dd} ";
+        }
 
         var args =
             "-y " +
@@ -249,6 +268,7 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
             $"-ss {ss} -i \"{inputFile}\" " +
             "-map 0:v:0 -map 1:a:0? -shortest " +
             "-c:v h264_nvenc -preset p4 -b:v 8M -pix_fmt yuv420p " +
+            sarArg + darArg +
             "-c:a copy " +
             pass + $" \"{outputFile}\"";
 
@@ -289,6 +309,26 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
 
     // ---------- helpers ----------
 
+    private static void ReduceFraction(ref int num, ref int den)
+    {
+        int Gcd(int a, int b)
+        {
+            while (b != 0)
+            {
+                var t = b;
+                b = a % b;
+                a = t;
+            }
+            return a;
+        }
+
+        var g = Gcd(Math.Abs(num), Math.Abs(den));
+        if (g > 1)
+        {
+            num /= g;
+            den /= g;
+        }
+    }
     private static async Task<int> ReadExact(Stream s, byte[] buffer, int offset, int count, CancellationToken token)
     {
         var total = 0;
