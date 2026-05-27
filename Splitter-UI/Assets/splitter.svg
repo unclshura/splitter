@@ -1,0 +1,100 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+
+  <!-- Background -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#111827"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+
+    <linearGradient id="accentGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#22C55E"/>
+      <stop offset="100%" stop-color="#0EA5E9"/>
+    </linearGradient>
+
+    <linearGradient id="videoGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F97316"/>
+      <stop offset="100%" stop-color="#EC4899"/>
+    </linearGradient>
+
+    <linearGradient id="cropGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#6366F1"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="256" height="256" rx="56" fill="url(#bgGrad)" />
+
+  <!-- Split timeline bar -->
+  <g transform="translate(32,188)">
+    <rect x="0" y="-10" width="192" height="20" rx="10" fill="#020617" />
+    <rect x="0" y="-10" width="192" height="20" rx="10" fill="url(#accentGrad)" opacity="0.18" />
+
+    <!-- Segment markers -->
+    <rect x="32"  y="-14" width="3" height="28" rx="1.5" fill="#FACC15" />
+    <rect x="80"  y="-14" width="3" height="28" rx="1.5" fill="#FACC15" />
+    <rect x="128" y="-14" width="3" height="28" rx="1.5" fill="#FACC15" />
+    <rect x="176" y="-14" width="3" height="28" rx="1.5" fill="#FACC15" />
+  </g>
+
+  <!-- Video tile (left) -->
+  <g transform="translate(26,52)">
+    <rect x="0" y="0" width="96" height="72" rx="12" fill="#020617" />
+    <rect x="0" y="0" width="96" height="72" rx="12" fill="url(#videoGrad)" opacity="0.9" />
+
+    <!-- Play triangle -->
+    <polygon points="38,22 64,36 38,50" fill="#F9FAFB" opacity="0.9" />
+
+    <!-- Small split indicator -->
+    <rect x="12" y="60" width="72" height="4" rx="2" fill="#111827" opacity="0.7" />
+    <rect x="36" y="58" width="2" height="8" rx="1" fill="#FACC15" />
+    <rect x="60" y="58" width="2" height="8" rx="1" fill="#FACC15" />
+  </g>
+
+  <!-- Video tile (right, shifted to suggest batch / multi-thread) -->
+  <g transform="translate(134,40)">
+    <rect x="0" y="0" width="96" height="72" rx="12" fill="#020617" />
+    <rect x="0" y="0" width="96" height="72" rx="12" fill="url(#videoGrad)" opacity="0.75" />
+
+    <!-- Play triangle -->
+    <polygon points="38,22 64,36 38,50" fill="#F9FAFB" opacity="0.85" />
+
+    <!-- Small split indicator -->
+    <rect x="12" y="60" width="72" height="4" rx="2" fill="#111827" opacity="0.7" />
+    <rect x="30" y="58" width="2" height="8" rx="1" fill="#FACC15" />
+    <rect x="54" y="58" width="2" height="8" rx="1" fill="#FACC15" />
+    <rect x="78" y="58" width="2" height="8" rx="1" fill="#FACC15" />
+  </g>
+
+  <!-- Smart crop frame with body/face hint -->
+  <g transform="translate(76,86)">
+    <!-- Outer crop frame -->
+    <rect x="0" y="0" width="104" height="104" rx="18" fill="#020617" opacity="0.9" />
+    <rect x="0" y="0" width="104" height="104" rx="18" fill="url(#cropGrad)" opacity="0.25" />
+
+    <!-- Corner crop brackets -->
+    <path d="M10 30 V14 A4 4 0 0 1 14 10 H30" stroke="#E5E7EB" stroke-width="3" stroke-linecap="round" fill="none" />
+    <path d="M74 10 H90 A4 4 0 0 1 94 14 V30" stroke="#E5E7EB" stroke-width="3" stroke-linecap="round" fill="none" />
+    <path d="M10 74 V90 A4 4 0 0 0 14 94 H30" stroke="#E5E7EB" stroke-width="3" stroke-linecap="round" fill="none" />
+    <path d="M74 94 H90 A4 4 0 0 0 94 90 V74" stroke="#E5E7EB" stroke-width="3" stroke-linecap="round" fill="none" />
+
+    <!-- Body / face glyph -->
+    <!-- Head -->
+    <circle cx="52" cy="36" r="11" fill="#F9FAFB" />
+    <!-- Torso -->
+    <path d="M32 72 C34 56 42 48 52 48 C62 48 70 56 72 72 Z"
+          fill="#F9FAFB" />
+
+    <!-- Gravitation / tracking bias arc -->
+    <path d="M30 82 A24 24 0 0 0 74 82"
+          stroke="url(#accentGrad)" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.9" />
+  </g>
+
+  <!-- Subtle multi-thread / performance hint (three vertical bars) -->
+  <g transform="translate(210,188)">
+    <rect x="-10" y="-18" width="4" height="24" rx="2" fill="#22C55E" opacity="0.9" />
+    <rect x="-2"  y="-22" width="4" height="28" rx="2" fill="#4ADE80" opacity="0.9" />
+    <rect x="6"   y="-16" width="4" height="22" rx="2" fill="#16A34A" opacity="0.9" />
+  </g>
+
+</svg>

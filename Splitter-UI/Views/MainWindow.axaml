@@ -9,7 +9,8 @@
     x:Name="Root"
     Width="1400"
     Height="950"
-    Title="Splitter UI">
+    Title="Splitter UI"
+    Icon="avares://Splitter-UI/Assets/splitter.png">
 
     <Window.Resources>
         <conv:BoolInvertConverter x:Key="BoolInvertConverter"/>
