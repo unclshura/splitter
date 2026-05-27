@@ -5,6 +5,18 @@ fixed‑length segments using multi‑threaded FFmpeg execution. It supports bat
 duration formats, rotation, smart face/body‑aware cropping, ETA and speed reporting, with nice GUI 
 or both rich and plain‑text terminal output.
 
+The intended primary use case is for content creators who need to split large video files into smaller 
+segments for platforms like TikTok, Instagram Reels, YouTube Shorts, or similar. The smart 
+cropping feature allows the tool to automatically detect and keep faces or bodies in the frame 
+when splitting, ensuring that important content is not cut off.
+
+Splitter uses cutting-edge body-detection CV models to analyze the video and determine optimal 
+cropping regions for each segment. Smooth tracking and gravitation bias ensure that the cropping remains
+stable and focused on the subject without excessive jitter or erratic movements. 
+The tool can also correct for rotation metadata to ensure proper orientation in the output segments.
+
+Splitter uses FFmpeg for the actual splitting and encoding, with multi-threading to maximize performance.
+
 ## Features
 
 - Human face or body detection with smart cropping
@@ -32,4 +44,5 @@ or both rich and plain‑text terminal output.
 ## More info
 
 [Command line tool](splitter-cli/README.md)
+
 [GUI tool](splitter-ui/README.md)
