@@ -13,7 +13,35 @@ public sealed class ThumbnailService : IThumbnailService
     private readonly byte [] _bgrBuffer  = new byte[_thumbWidth * _thumbHeight * 3];
     private readonly byte [] _bgraBuffer = new byte[_thumbWidth * _thumbHeight * 4];
 
+    public SemaphoreSlim _lock = new(1,1);
+
     public async Task<Bitmap?> CreateThumbnailAsync(
+        string file,
+        VideoInfo probe,
+        TimeSpan? skip    = null,
+        int? width        = null,
+        int? height       = null,
+        int? rotateDegree = null)
+    {
+        await _lock.WaitAsync();
+        try
+        {
+            return await CreateThumbnailInternal(
+                file,
+                probe,
+                skip,
+                width,
+                height,
+                rotateDegree
+                );
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    private async Task<Bitmap?> CreateThumbnailInternal(
         string file,
         VideoInfo probe,
         TimeSpan? skip = null,
