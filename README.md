@@ -45,4 +45,4 @@ Splitter uses FFmpeg for the actual splitting and encoding, with multi-threading
 
 [Command line tool](splitter-cli/README.md)
 
-[GUI tool](splitter-ui/README.md)
+[GUI tool](Splitter-UI/README.md)
