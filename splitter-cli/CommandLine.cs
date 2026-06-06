@@ -74,6 +74,10 @@ public sealed class CommandLine
             {
                 Master.Rotate = 90;
             }
+            else if (arg == "--enhance")
+            {
+                Master.Enhance = true;
+            }
             else if (arg.StartsWith("--rotate="))
             {
                 var val = arg.Substring("--rotate=".Length);
@@ -327,6 +331,9 @@ Options:
   --force                Use fixed segment duration exactly as given.
                          Last segment may be shorter.
                          Default: OFF
+
+  --enhance              Enable video enhancement.
+                         Increases output resolution x4 Using RealBasicVSR_x4 model.
 
   --rotate=<degrees>     Rotate video by specified degrees (90, 180, 270).
                          Useful for videos with incorrect orientation metadata.

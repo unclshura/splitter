@@ -7,10 +7,10 @@ public class SimpleSplitter(int segmentNo, ILogger logger) : LoggingBase(logger,
 {
     public async Task ProcessSegment(SingleTask job, CancellationToken token)
     {
-        string inputFile  = job.Job.InputFile;
-        string outputFile = job.OutputFileName;
-        double start      = job.SegmentStart;
-        double length     = job.SegmentLength;
+        var inputFile  = job.Job.InputFile;
+        var outputFile = job.OutputFileName;
+        var start      = job.SegmentStart;
+        var length     = job.SegmentLength;
 
         var rotation = GetRotationFilter(job.Job.Rotate);
 
@@ -36,12 +36,12 @@ public class SimpleSplitter(int segmentNo, ILogger logger) : LoggingBase(logger,
             {
                 // Rotation path: must re-encode and recompute DAR
 
-                long sarNum = Convert.ToInt64(job.Info.Sar.X);
-                long sarDen = Convert.ToInt64(job.Info.Sar.Y);
+                var sarNum = Convert.ToInt64(job.Info.Sar.X);
+                var sarDen = Convert.ToInt64(job.Info.Sar.Y);
 
                 // After rotation, width/height swap
-                int w = job.Info.Width;
-                int h = job.Info.Height;
+                var w = job.Info.Width;
+                var h = job.Info.Height;
 
                 if (job.Job.Rotate == 90 || job.Job.Rotate == 270)
                 {
@@ -119,7 +119,7 @@ public class SimpleSplitter(int segmentNo, ILogger logger) : LoggingBase(logger,
 
         while (b != 0)
         {
-            long t = b;
+            var t = b;
             b = a % b;
             a = t;
         }
@@ -167,7 +167,7 @@ public class SimpleSplitter(int segmentNo, ILogger logger) : LoggingBase(logger,
     {
         // FFmpeg formats: HH:MM:SS.xx
         // We read until whitespace
-        int end = startIndex;
+        var end = startIndex;
         while (end < line.Length && !char.IsWhiteSpace(line[end]))
             end++;
 

@@ -125,14 +125,14 @@ public sealed class YoloOnnxObjectDetector : LoggingBase, IObjectDetector, IDisp
 
         // Build reusable result list
         _results.Clear();
-        for (int i = 0; i < final.Count; i++)
+        for (var i = 0; i < final.Count; i++)
         {
             var d = final[i];
 
-            int x = (int)d.X;
-            int y = (int)d.Y;
-            int w = (int)d.Width;
-            int h = (int)d.Height;
+            var x = (int)d.X;
+            var y = (int)d.Y;
+            var w = (int)d.Width;
+            var h = (int)d.Height;
 
             x = Math.Clamp(x, 0, frameCont.Width - 1);
             y = Math.Clamp(y, 0, frameCont.Height - 1);
@@ -155,30 +155,30 @@ public sealed class YoloOnnxObjectDetector : LoggingBase, IObjectDetector, IDisp
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void FillInputTensor(Mat rgb)
     {
-        int height = _inputHeight;
-        int width  = _inputWidth;
+        var height = _inputHeight;
+        var width  = _inputWidth;
 
         // NCHW: [1, 3, H, W]
-        int planeSize = height * width;
+        var planeSize = height * width;
 
         Span<float> dst = _inputBuffer.AsSpan();
 
         unsafe
         {
-            for (int y = 0; y < height; y++)
+            for (var y = 0; y < height; y++)
             {
-                byte* rowPtr = (byte*)rgb.Ptr(y).ToPointer();
+                var rowPtr = (byte*)rgb.Ptr(y).ToPointer();
                 var rowSpan = new Span<byte>(rowPtr, width * 3);
 
-                int srcIndex = 0;
+                var srcIndex = 0;
 
-                for (int x = 0; x < width; x++)
+                for (var x = 0; x < width; x++)
                 {
-                    byte r = rowSpan[srcIndex + 0];
-                    byte g = rowSpan[srcIndex + 1];
-                    byte b = rowSpan[srcIndex + 2];
+                    var r = rowSpan[srcIndex + 0];
+                    var g = rowSpan[srcIndex + 1];
+                    var b = rowSpan[srcIndex + 2];
 
-                    int offset = y * width + x;
+                    var offset = y * width + x;
 
                     // channel 0: R
                     dst[offset] = r * _inv255;
@@ -205,27 +205,27 @@ public sealed class YoloOnnxObjectDetector : LoggingBase, IObjectDetector, IDisp
         detections.Clear();
 
         // YOLOv8 output: [1, 84, 8400]
-        int channels = output.Dimensions[1]; // 84
-        int count    = output.Dimensions[2]; // 8400
+        var channels = output.Dimensions[1]; // 84
+        var count    = output.Dimensions[2]; // 8400
 
-        float xScale = (float)originalWidth  / 640f;
-        float yScale = (float)originalHeight / 640f;
+        var xScale = (float)originalWidth  / 640f;
+        var yScale = (float)originalHeight / 640f;
 
-        for (int i = 0; i < count; i++)
+        for (var i = 0; i < count; i++)
         {
-            float x = output[0, 0, i];
-            float y = output[0, 1, i];
-            float w = output[0, 2, i];
-            float h = output[0, 3, i];
+            var x = output[0, 0, i];
+            var y = output[0, 1, i];
+            var w = output[0, 2, i];
+            var h = output[0, 3, i];
 
-            float classScore = output[0, 4 + classIndex, i];
+            var classScore = output[0, 4 + classIndex, i];
             if (classScore < scoreThreshold)
                 continue;
 
-            float left   = (x - w / 2f) * xScale;
-            float top    = (y - h / 2f) * yScale;
-            float width  = w * xScale;
-            float height = h * yScale;
+            var left   = (x - w / 2f) * xScale;
+            var top    = (y - h / 2f) * yScale;
+            var width  = w * xScale;
+            var height = h * yScale;
 
             detections.Add(new Detection
             (
@@ -252,12 +252,12 @@ public sealed class YoloOnnxObjectDetector : LoggingBase, IObjectDetector, IDisp
         // Sort in-place by score descending
         detections.Sort(static (a, b) => b.Score.CompareTo(a.Score));
 
-        for (int i = 0; i < detections.Count; i++)
+        for (var i = 0; i < detections.Count; i++)
         {
             var candidate = detections[i];
-            bool keep = true;
+            var keep = true;
 
-            for (int j = 0; j < nmsBuffer.Count; j++)
+            for (var j = 0; j < nmsBuffer.Count; j++)
             {
                 if (IoU(candidate, nmsBuffer[j]) >= nmsThreshold)
                 {
@@ -276,23 +276,23 @@ public sealed class YoloOnnxObjectDetector : LoggingBase, IObjectDetector, IDisp
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static float IoU(in Detection a, in Detection b)
     {
-        float x1 = MathF.Max(a.X, b.X);
-        float y1 = MathF.Max(a.Y, b.Y);
-        float x2 = MathF.Min(a.X + a.Width,  b.X + b.Width);
-        float y2 = MathF.Min(a.Y + a.Height, b.Y + b.Height);
+        var x1 = MathF.Max(a.X, b.X);
+        var y1 = MathF.Max(a.Y, b.Y);
+        var x2 = MathF.Min(a.X + a.Width,  b.X + b.Width);
+        var y2 = MathF.Min(a.Y + a.Height, b.Y + b.Height);
 
-        float interW = x2 - x1;
+        var interW = x2 - x1;
         if (interW <= 0f) return 0f;
 
-        float interH = y2 - y1;
+        var interH = y2 - y1;
         if (interH <= 0f) return 0f;
 
-        float interArea = interW * interH;
+        var interArea = interW * interH;
 
-        float areaA = a.Width * a.Height;
-        float areaB = b.Width * b.Height;
+        var areaA = a.Width * a.Height;
+        var areaB = b.Width * b.Height;
 
-        float union = areaA + areaB - interArea;
+        var union = areaA + areaB - interArea;
         if (union <= 0f) return 0f;
 
         return interArea / union;

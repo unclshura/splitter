@@ -26,19 +26,18 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
 
     public async Task ProcessSegment(SingleTask job, CancellationToken token)
     {
-        string inputFile                     = job.Job.InputFile;
-        string outputFile                    = job.OutputFileName;
-        double start                         = job.SegmentStart;
-        double length                        = job.SegmentLength;
-        int videoWidth                       = job.Info.Width;
-        int videoHeight                      = job.Info.Height;
-        double fps                           = job.Info.Fps;
-        double bitrate                       = job.Info.Bitrate;
-        string[] ffmpegPassthroughParameters = job.Job.Passthrough;
+        var inputFile   = job.Job.InputFile;
+        var outputFile  = job.OutputFileName;
+        var start       = job.SegmentStart;
+        var length      = job.SegmentLength;
+        var videoWidth  = job.Info.Width;
+        var videoHeight = job.Info.Height;
+        var fps         = job.Info.Fps;
+        var bitrate     = job.Info.Bitrate;
+        var ffmpegPassthroughParameters = job.Job.Passthrough;
 
         var name = Path.GetFileNameWithoutExtension(outputFile);
 
-        // 1) Probe source video
         if (videoWidth <= 0 || videoHeight <= 0 || fps <= 0)
         {
             LogError($"{name}: ffprobe failed to get metadata");
@@ -51,16 +50,29 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
             return;
         }
 
-        var encWidth  = job.Job.Debug ? videoWidth  : job.Job.Crop.Value.width;
-        var encHeight = job.Job.Debug ? videoHeight : job.Job.Crop.Value.height;
+        // Processing size (what you crop / feed into enhancer)
+        var procWidth  = job.Job.Debug ? videoWidth  : job.Job.Crop.Value.width;
+        var procHeight = job.Job.Debug ? videoHeight : job.Job.Crop.Value.height;
 
-        LogInfo($"{name}: src={videoWidth}x{videoHeight} @ {fps:F3}fps, seg=[{start:F3},{length:F3}] enc={encWidth}x{encHeight}");
+        IVideoEnhancer? enhancer = null;
 
-        // 2) Start FFmpeg decode (video only → raw BGR24 to stdout)
+        const int window = 5;
+
+        if (job.Job.Enhance)
+        {
+            enhancer = new RealBasicVsr2xDmlEnhancer();
+            await enhancer.InitializeAsync(procWidth, procHeight, window, token);
+        }
+
+        // Encoding size (what FFmpeg encoder expects)
+        var encWidth  = enhancer != null ? procWidth  * enhancer.ResolutionMultiplier : procWidth;
+        var encHeight = enhancer != null ? procHeight * enhancer.ResolutionMultiplier : procHeight;
+
+        LogInfo($"{name}: src={videoWidth}x{videoHeight} @ {fps:F3}fps, seg=[{start:F3},{length:F3}] proc={procWidth}x{procHeight} enc={encWidth}x{encHeight}");
+
         var decode = await StartFfmpegDecode(inputFile, start, length, job.Job.Rotate, job.Job.PlainText, token);
         using var decodeStdout = decode.StandardOutput.BaseStream;
 
-        // 3) Start FFmpeg encode (video from stdin + audio from original)
         var encode = await StartFfmpegEncode(
             inputFile,
             outputFile,
@@ -75,88 +87,117 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
 
         using var encodeStdin = encode.StandardInput.BaseStream;
 
-        // Separate input/output sizes and buffers
+        // Input: always full frame
         var inBytes  = videoWidth * videoHeight * 3;
-        var outBytes = encWidth   * encHeight   * 3;
+
+        // Output: encoded frame size (may be 4x if enhancement enabled)
+        var outBytes = encWidth * encHeight * 3;
 
         var inBuffer  = new byte[inBytes];
         var outBuffer = new byte[outBytes];
 
         using var frameMat = new Mat(videoHeight, videoWidth, MatType.CV_8UC3);
-        using var outMat   = new Mat(encHeight, encWidth, MatType.CV_8UC3);
+
+        // outMat is processing size (crop), not necessarily encoding size
+        using var outMat = new Mat(procHeight, procWidth, MatType.CV_8UC3);
 
         var kalman = new KalmanTracker();
         var camera = new CameraController(
-            videoWidth,
-            videoHeight,
-            job.Job.Crop.Value.width,
-            job.Job.Crop.Value.height,
-            kalman,
-            job.Job);
+        videoWidth,
+        videoHeight,
+        job.Job.Crop.Value.width,
+        job.Job.Crop.Value.height,
+        kalman,
+        job.Job);
 
-        var startTime   = DateTime.UtcNow;
-        var totalFrames = (int)Math.Round(length * fps);
-        var frameIndex  = 0;
-
-        while (frameIndex < totalFrames)
+        try
         {
-            token.ThrowIfCancellationRequested();
-
-            frameIndex++;
-
-            var read = await ReadExact(decodeStdout, inBuffer, 0, inBytes, token);
-            if (read != inBytes)
-                break;
-
-            // input frame → Mat
-            Marshal.Copy(inBuffer, 0, frameMat.Data, inBytes);
-
-            var objects = _detector.DetectAll(frameMat);
-            var primary = SelectTrackedObject(objects, kalman.LastMeasurement);
-
-            camera.Update(primary);
-            var roi = camera.Roi;
-
-            if (job.Job.Debug)
+            var startTime   = DateTime.UtcNow;
+            var totalFrames = (int)Math.Round(length * fps);
+            var frameIndex  = 0;
+            
+            var enhancedOutput = new Mat[window];
+            //totalFrames = 10;
+            while (frameIndex < totalFrames)
             {
-                DrawDebug(frameMat, objects, camera, kalman);
-                frameMat.CopyTo(outMat);
+                token.ThrowIfCancellationRequested();
+
+                frameIndex++;
+
+                var read = await ReadExact(decodeStdout, inBuffer, 0, inBytes, token);
+                if (read != inBytes)
+                    break;
+
+                Marshal.Copy(inBuffer, 0, frameMat.Data, inBytes);
+
+                var objects = _detector.DetectAll(frameMat);
+                var primary = SelectTrackedObject(objects, kalman.LastMeasurement);
+
+                camera.Update(primary);
+                var roi = camera.Roi;
+
+                if (job.Job.Debug)
+                {
+                    DrawDebug(frameMat, objects, camera, kalman);
+                    frameMat.CopyTo(outMat); // outMat: procWidth x procHeight == full frame in debug
+                }
+                else
+                {
+                    using var cropped = new Mat(frameMat, roi);
+                    cropped.CopyTo(outMat); // outMat: procWidth x procHeight == crop
+                }
+
+                Mat frameToWrite = outMat;
+
+                if (enhancer != null)
+                {
+                    if (enhancer.TryProcessFrame(outMat, out var enhanced, token))
+                        frameToWrite = enhanced; // enhanced: encWidth x encHeight
+                    else
+                        continue;
+                }
+
+                Marshal.Copy(frameToWrite.Data, outBuffer, 0, outBytes);
+                encodeStdin.Write(outBuffer, 0, outBytes);
+
+                var elapsed         = DateTime.UtcNow - startTime;
+                var progress        = totalFrames > 0 ? (double)frameIndex / totalFrames : 0.0;
+                var speed           = elapsed.TotalSeconds > 0 ? (frameIndex / elapsed.TotalSeconds) / fps : 0.0;
+                var remainingFrames = Math.Max(totalFrames - frameIndex, 0);
+                var etaSeconds      = speed > 0 ? remainingFrames / speed : 0.0;
+                var eta             = TimeSpan.FromSeconds(etaSeconds);
+
+                DrawProgress(name, progress, eta, speed);
             }
-            else
+
+            if (enhancer != null)
             {
-                using var cropped = new Mat(frameMat, roi);
-                cropped.CopyTo(outMat);
+                int count = enhancer.Flush(enhancedOutput, token);
+                for (int i = 0; i < count; i++)
+                {
+                    var mat = enhancedOutput[i]; // encWidth x encHeight
+                    Marshal.Copy(mat.Data, outBuffer, 0, outBytes);
+                    encodeStdin.Write(outBuffer, 0, outBytes);
+                }
             }
 
-            // output Mat → outBuffer
-            Marshal.Copy(outMat.Data, outBuffer, 0, outBytes);
-            encodeStdin.Write(outBuffer, 0, outBytes);
+            encodeStdin.Flush();
+            encodeStdin.Close();
 
-            var elapsed         = DateTime.UtcNow - startTime;
-            var progress        = totalFrames > 0 ? (double)frameIndex / totalFrames : 0.0;
-            var speed           = elapsed.TotalSeconds > 0 ? (frameIndex / elapsed.TotalSeconds) / fps : 0.0;
-            var remainingFrames = Math.Max(totalFrames - frameIndex, 0);
-            var etaSeconds      = speed > 0 ? remainingFrames / speed : 0.0;
-            var eta             = TimeSpan.FromSeconds(etaSeconds);
-
-            DrawProgress(name, progress, eta, speed);
+            await encode.WaitForExitAsync();
+        }
+        finally
+        {
+            if (enhancer is IAsyncDisposable asyncDisp)
+                await asyncDisp.DisposeAsync();
+            else if (enhancer is IDisposable disp)
+                disp?.Dispose();
         }
 
-        encodeStdin.Flush();
-
-        // loop finished
-
-        encodeStdin.Flush();
-        encodeStdin.Close();          // must happen before waiting encode
-
-        await encode.WaitForExitAsync();
-
-        // belt-and-braces: if decode is still alive, kill it
         try { if (!decode.HasExited) decode.Kill(entireProcessTree: true); } catch { }
         try { if (!decode.HasExited) await decode.WaitForExitAsync(); } catch { }
 
         ClearProgress(name);
-
 
         if (encode.ExitCode != 0)
             LogError($"{name}: FFmpeg encoding failed");
@@ -245,7 +286,7 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
             ? $"-vf setsar={info.SampleAspectRatio} "
             : "";
 
-        string darArg    = "";
+        var darArg    = "";
 
         if (info.Sar is { } s)
         {
@@ -254,8 +295,8 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
             var darDen = height * s.Y;
 
             // clamp to int and reduce
-            int dn = (int)Math.Min(int.MaxValue, Math.Max(int.MinValue, darNum));
-            int dd = (int)Math.Min(int.MaxValue, Math.Max(int.MinValue, darDen));
+            var dn = (int)Math.Min(int.MaxValue, Math.Max(int.MinValue, darNum));
+            var dd = (int)Math.Min(int.MaxValue, Math.Max(int.MinValue, darDen));
             ReduceFraction(ref dn, ref dd);
 
             if (dn > 0 && dd > 0)
@@ -385,7 +426,7 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
             var bestIndex = 0;
             var bestArea  = float.MinValue;
 
-            for (int i = 0; i < foundObjects.Count; i++)
+            for (var i = 0; i < foundObjects.Count; i++)
             {
                 var f    = foundObjects[i];
                 var area = f.box.Width * f.box.Height;
@@ -404,7 +445,7 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
             var bestIndex = 0;
             var bestDist2 = float.MaxValue;
 
-            for (int i = 0; i < foundObjects.Count; i++)
+            for (var i = 0; i < foundObjects.Count; i++)
             {
                 var f  = foundObjects[i];
                 var dx = f.center.X - prev.X;

@@ -40,6 +40,7 @@ public partial class InspectorPaneViewModel : ObservableObject
             job.OutputFolder           = Selected.OutputFolder;
             job.OverrideTargetDuration = Selected.OverrideTargetDuration;
             job.PassthroughText        = Selected.PassthroughText;
+            job.Enhance                = Selected.Enhance;
             
             job.ParametersList.Clear();
             foreach (var param in Selected.ParametersList)

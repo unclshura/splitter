@@ -92,6 +92,16 @@ x:DataType="vm:InspectorPaneViewModel">
                     <NumericUpDown Value="{Binding Selected.OverrideTargetDuration}" Width="120"/>
                 </StackPanel>
 
+                <!-- Enhance -->
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <CheckBox Content="Enhance resolution x2"
+                              IsChecked="{Binding Selected.Enhance}"/>
+                    <TextBlock Text="(Very slow and not worth it!)" 
+                               Foreground="#FFFF80FF"
+                               FontSize="10" 
+                               Margin="0,12,0,0"/>
+                </StackPanel>
+
                 <!-- ForceFixed -->
                 <CheckBox Content="Force Fixed Duration"
                           IsChecked="{Binding Selected.ForceFixed}"/>

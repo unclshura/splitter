@@ -92,6 +92,10 @@ public class SingleJob
     /// object detector or rotation detector.
     /// </summary>
     public Dictionary<string, string> Parameters             { get; set; } = [];
+    /// <summary>
+    /// Increase output resolution by x4 using super-resolution RealBasicVSR_x4 model.
+    /// </summary>
+    public bool                       Enhance                { get; set; }
 
     public void Override<T>(ref T member, string name)
     {

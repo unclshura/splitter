@@ -51,10 +51,10 @@ public sealed class UltraFaceDetector: LoggingBase, IDisposable, IObjectDetector
 
                 foreach (var f in faces)
                 {
-                    int x1 = (int)f.X1;
-                    int y1 = (int)f.Y1;
-                    int x2 = (int)f.X2;
-                    int y2 = (int)f.Y2;
+                    var x1 = (int)f.X1;
+                    var y1 = (int)f.Y1;
+                    var x2 = (int)f.X2;
+                    var y2 = (int)f.Y2;
 
                     var rect = new Rect(
                     x1,

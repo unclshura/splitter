@@ -42,28 +42,28 @@ public sealed class FrameRotationDetector
         Cv2.CartToPolar(_gx, _gy, _mag, _angle, angleInDegrees: true);
 
         // 4. Clear histogram
-        for (int i = 0; i < _bins; i++)
+        for (var i = 0; i < _bins; i++)
             _hist[i] = 0;
 
-        float binSize = 180f / _bins;
+        var binSize = 180f / _bins;
 
         unsafe
         {
-            float* anglePtr = (float*)_angle.Data;
-            float* magPtr   = (float*)_mag.Data;
+            var anglePtr = (float*)_angle.Data;
+            var magPtr   = (float*)_mag.Data;
 
-            int total = _w * _h;
+            var total = _w * _h;
 
-            for (int i = 0; i < total; i++)
+            for (var i = 0; i < total; i++)
             {
-                float m = magPtr[i];
+                var m = magPtr[i];
                 if (m < 5f) continue; // ignore weak gradients
 
-                float a = anglePtr[i];
+                var a = anglePtr[i];
                 if (a < 0) a += 360f;
                 a = a % 180f;
 
-                int bin = (int)(a / binSize);
+                var bin = (int)(a / binSize);
                 if (bin < 0) bin = 0;
                 if (bin >= _bins) bin = _bins - 1;
 
@@ -73,12 +73,12 @@ public sealed class FrameRotationDetector
 
         // 5. Energy around 0° vs 90°
         float e0 = 0, e90 = 0;
-        int window = 3;
+        var window = 3;
 
-        int bin0  = 0;
-        int bin90 = _bins / 2;
+        var bin0  = 0;
+        var bin90 = _bins / 2;
 
-        for (int i = -window; i <= window; i++)
+        for (var i = -window; i <= window; i++)
         {
             e0 += _hist[Wrap(bin0 + i)];
             e90 += _hist[Wrap(bin90 + i)];

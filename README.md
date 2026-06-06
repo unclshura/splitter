@@ -3,7 +3,7 @@
 Splitter is a high-performance command line tool for cutting one or more video files into equal or 
 fixed‑length segments using multi‑threaded FFmpeg execution. It supports batch input, flexible 
 duration formats, rotation, smart face/body‑aware cropping, ETA and speed reporting, with nice GUI 
-or both rich and plain‑text terminal output.
+or both rich and plain-text terminal output.
 
 The intended primary use case is for content creators who need to split large video files into smaller 
 segments for platforms like TikTok, Instagram Reels, YouTube Shorts, or similar. The smart 
@@ -34,7 +34,7 @@ Splitter uses FFmpeg for the actual splitting and encoding, with multi-threading
 ### Command line interface
 ![Splitter](splitter-cli/splitter.png)
 ### Graphical user interface
-![Splitter UI](splitter-ui/screenshot.png)
+![Splitter UI](Splitter-UI/screenshot.png)
 
 ## Requirements
 

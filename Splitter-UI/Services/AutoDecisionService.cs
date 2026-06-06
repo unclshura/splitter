@@ -46,12 +46,12 @@ public sealed class AutoDecisionService(IThumbnailService _thumbnails, IFileProb
         var targetAR = (float)CommandLine.DefaultW / CommandLine.DefaultH;
         var pixelAspect = job.Probe!.Sar.X / job.Probe.Sar.Y;
 
-        float srcW = job.Probe.Width  * pixelAspect;
+        var srcW = job.Probe.Width  * pixelAspect;
         float srcH = job.Probe.Height;
         var srcAR = srcW / srcH;
 
-        float cropH = srcH;
-        float cropW = cropH * targetAR;
+        var cropH = srcH;
+        var cropW = cropH * targetAR;
 
         if (cropW > srcW)
         {
@@ -59,16 +59,16 @@ public sealed class AutoDecisionService(IThumbnailService _thumbnails, IFileProb
             cropH = cropW / targetAR;
         }
 
-        float x = (srcW - cropW) * 0.5f;
-        float y = (srcH - cropH) * 0.5f;
+        var x = (srcW - cropW) * 0.5f;
+        var y = (srcH - cropH) * 0.5f;
 
-        float invPixelAspect = 1f / pixelAspect;
+        var invPixelAspect = 1f / pixelAspect;
 
-        float cropW_px = cropW * invPixelAspect;
-        float cropH_px = cropH;
+        var cropW_px = cropW * invPixelAspect;
+        var cropH_px = cropH;
 
-        float x_px = x * invPixelAspect;
-        float y_px = y;
+        var x_px = x * invPixelAspect;
+        var y_px = y;
 
         job.CropText = $"{(int)MathF.Round(cropW_px)},{(int)MathF.Round(cropH_px)}";
     }

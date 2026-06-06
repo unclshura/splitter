@@ -95,7 +95,7 @@ public sealed class CameraController
             _dropoutCounter = 0;
         }
 
-        bool isLost = !objectCenter.HasValue;
+        var isLost = !objectCenter.HasValue;
 
         // LOST / REACQUIRE STATE MACHINE
         if (isLost)
@@ -147,7 +147,7 @@ public sealed class CameraController
         {
             smoothedCenter = _kalman.Update(objectCenter);
 
-            float driftEasing = 0.01f;
+            var driftEasing = 0.01f;
             var fallbackCenter = new Point2f(_videoWidth / 2f, _videoHeight / 2f);
 
             _cameraCenter = new Point2f(

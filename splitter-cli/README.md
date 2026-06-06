@@ -147,6 +147,7 @@ All option names are preserved exactly, and descriptions are consolidated for cl
 | **--mask=<pattern>** | Custom output filename pattern. Default: `[NAME]_seg[NN].[EXT]`. Supports `[NAME]`, `[N]`, `[NN]`, `[NNN]`, `[NNNN]`, `[EXT]`. Example: `--mask="[NAME]_[NNNN].mp4"`. |
 | **--duration=<value>** | Override target segment duration. Formats: `Ns`, `NmMs`, `N`. Examples: `--duration=90s`, `--duration=2m30s`, `--duration=45`. Without `--force`: max 58 seconds, equalized across segments. |
 | **--force** | Use the duration exactly as provided. Last segment may be shorter. |
+| **--enhance** | Enable video enhancement. Increases output resolution x4 using RealBasicVSR_x4 model. |
 | **--rotate=<degrees>** | Rotate video by 90, 180, or 270 degrees. Useful for correcting orientation metadata. |
 | **--rotate-auto** | Use automatic rotation detection. |
 | **--estimate** | Print calculated segment information and exit. No splitting is performed. |

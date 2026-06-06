@@ -8,8 +8,8 @@ public static class FileMaskExpander
         if (!HasMask(input))
             return [Path.GetFullPath(input)];
 
-        string directory = Path.GetDirectoryName(input) ?? Directory.GetCurrentDirectory();
-        string pattern   = Path.GetFileName(input);
+        var directory = Path.GetDirectoryName(input) ?? Directory.GetCurrentDirectory();
+        var pattern   = Path.GetFileName(input);
 
         if (string.IsNullOrEmpty(directory))
             directory = Directory.GetCurrentDirectory();

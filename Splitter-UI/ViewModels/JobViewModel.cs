@@ -157,6 +157,18 @@ public partial class JobViewModel : ObservableObject
         }
     }
 
+    public bool Enhance
+    {
+        get => Job.Enhance;
+        set
+        {
+            if (Job.Enhance == value)
+                return;
+            Job.Enhance = value;
+            OnPropertyChanged();
+        }
+    }
+
     public int? Rotate
     {
         get => Job.Rotate;

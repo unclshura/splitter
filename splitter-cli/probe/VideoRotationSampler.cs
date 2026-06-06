@@ -29,8 +29,8 @@ public sealed class VideoRotationSampler
                 RotationDetectorFrameHeight = int.Parse(s);
         }
 
-        int w = RotationDetectorFrameWidth;
-        int h = RotationDetectorFrameHeight;
+        var w = RotationDetectorFrameWidth;
+        var h = RotationDetectorFrameHeight;
 
         _buffer    = new byte[w * h * 3];                  // raw BGR24 buffer
         _frameMat  = new Mat(h, w, MatType.CV_8UC3);       // wraps buffer
@@ -46,9 +46,9 @@ public sealed class VideoRotationSampler
 
         var rotations = new List<int>();
 
-        for (int i = 0; i < RotationDetectorSampleCount; i++)
+        for (var i = 0; i < RotationDetectorSampleCount; i++)
         {
-            double t = videoLengthSeconds * (i + 1) / (RotationDetectorSampleCount + 1);
+            var t = videoLengthSeconds * (i + 1) / (RotationDetectorSampleCount + 1);
 
             var frame = await DecodeSingleFrameAsync(
                 inputFile,
@@ -60,7 +60,7 @@ public sealed class VideoRotationSampler
 
             if (frame != null && !frame.Empty())
             {
-                int rot = _detector.GetRotation(frame);
+                var rot = _detector.GetRotation(frame);
                 rotations.Add(rot);
             }
         }
@@ -80,8 +80,8 @@ public sealed class VideoRotationSampler
             counts[v]++;
         }
 
-        int best = 0;
-        int bestCount = 0;
+        var best = 0;
+        var bestCount = 0;
 
         foreach (var kv in counts)
         {

@@ -39,7 +39,7 @@ public sealed class SpectreConsoleLogger : ILogger, IDisposable
             lock (_sync)
             {
                 _numberOfProcesses = Math.Max(1, value);
-                for (int i = 0; i < _numberOfProcesses; i++)
+                for (var i = 0; i < _numberOfProcesses; i++)
                 {
                     if (!_progress.ContainsKey(i))
                         _progress[i] = ProgressEntry.Empty;
@@ -282,17 +282,17 @@ public sealed class SpectreConsoleLogger : ILogger, IDisposable
         if (width <= 0)
             return string.Empty;
 
-        int filled = (int)Math.Round(progress * width);
-        int empty = width - filled;
+        var filled = (int)Math.Round(progress * width);
+        var empty = width - filled;
 
         if (filled <= 0)
             return $"[grey]{new string('─', width)}[/]";
 
         // Split filled part into three segments: blue / yellow / green
         // low progress: mostly blue; mid: yellow; high: green
-        int blueCount = (int)Math.Round(filled * 0.33);
-        int yellowCount = (int)Math.Round(filled * 0.34);
-        int greenCount = filled - blueCount - yellowCount;
+        var blueCount = (int)Math.Round(filled * 0.33);
+        var yellowCount = (int)Math.Round(filled * 0.34);
+        var greenCount = filled - blueCount - yellowCount;
 
         var sb = new StringBuilder();
 

@@ -72,7 +72,7 @@ public static class ProbeVideo
         var width    = stream?.Width ?? 0;
         var height   = stream?.Height ?? 0;
 
-        double fps = 0.0;
+        var fps = 0.0;
         if (!string.IsNullOrWhiteSpace(stream?.Avg_frame_rate))
         {
             var parts = stream.Avg_frame_rate.Split('/');

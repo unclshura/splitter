@@ -63,7 +63,7 @@ public sealed class ThumbnailService : IThumbnailService
         var bgraBuffer = canUseStaticBuffers ? _bgraBuffer : new byte[width.Value * height.Value * 4];
 
         // Decode a single frame using ffmpeg → raw BGR24 into _bgrBuffer
-        bool ok = await DecodeFrameAsync(bgrBuffer, file, skip.Value, width.Value, height.Value, rotateDegree);
+        var ok = await DecodeFrameAsync(bgrBuffer, file, skip.Value, width.Value, height.Value, rotateDegree);
         if (!ok)
             return null;
 
@@ -99,14 +99,14 @@ public sealed class ThumbnailService : IThumbnailService
         var p = new Process { StartInfo = psi };
         p.Start();
 
-        int needed = bgrBuffer.Length;
-        int read = 0;
+        var needed = bgrBuffer.Length;
+        var read = 0;
 
         using var stdout = p.StandardOutput.BaseStream;
 
         while (read < needed)
         {
-            int r = await stdout.ReadAsync(bgrBuffer, read, needed - read);
+            var r = await stdout.ReadAsync(bgrBuffer, read, needed - read);
             if (r == 0)
             {
                 TryKill(p);
@@ -126,12 +126,12 @@ public sealed class ThumbnailService : IThumbnailService
 
     private static void ConvertBgrToBgra(byte[] bgr, byte[] bgra, int width, int height)
     {
-        int si = 0;
-        int di = 0;
+        var si = 0;
+        var di = 0;
 
-        int totalPixels = width * height;
+        var totalPixels = width * height;
 
-        for (int i = 0; i < totalPixels; i++)
+        for (var i = 0; i < totalPixels; i++)
         {
             bgra[di + 0] = bgr[si + 0]; // B
             bgra[di + 1] = bgr[si + 1]; // G
@@ -150,7 +150,7 @@ public sealed class ThumbnailService : IThumbnailService
             (height, width) = (width, height);
         }
 
-        int stride = width * 4;
+        var stride = width * 4;
 
         fixed (byte* p = bgra)
         {

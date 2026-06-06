@@ -279,8 +279,8 @@ public sealed class PreviewCanvas : Control
 
         var scale = Math.Min(dispW / displayW, dispH / displayH);
 
-        double dx = dxCanvas / scale;
-        double dy = dyCanvas / scale;
+        var dx = dxCanvas / scale;
+        var dy = dyCanvas / scale;
 
         if (rotate == 0 || rotate == 180)
             dx /= pixelAspect;
@@ -288,8 +288,8 @@ public sealed class PreviewCanvas : Control
             dy /= pixelAspect;
 
         // start normalized → pixel
-        double gx = _dragStartValue.X * rawW + dx;
-        double gy = _dragStartValue.Y * rawH + dy;
+        var gx = _dragStartValue.X * rawW + dx;
+        var gy = _dragStartValue.Y * rawH + dy;
 
         switch (rotate)
         {
@@ -368,8 +368,8 @@ public sealed class PreviewCanvas : Control
         var g = GravitateTo;
 
         // normalized → pixel
-        double px = g.X * rawW;
-        double py = g.Y * rawH;
+        var px = g.X * rawW;
+        var py = g.Y * rawH;
 
         var (sx, sy) = TransformPoint(
             px, py,

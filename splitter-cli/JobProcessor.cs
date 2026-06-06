@@ -65,6 +65,7 @@ public class JobProcessor(ILogger logger) : LoggingBase(logger, 0), IJobProcesso
                 {
                     "face" => new UltraFaceDetector(_logger),
                     "body" => new YoloOnnxObjectDetector(_logger),
+                    "none" => new DummyDetector(),
                     _      => throw new InvalidOperationException($"Unknown detector: {job.Detect}")
                 };
                 return new TrackingSplitter(i, detector, job, _logger);
@@ -146,7 +147,7 @@ public class JobProcessor(ILogger logger) : LoggingBase(logger, 0), IJobProcesso
 
             tasks.Add(Task.Run(async () =>
             {
-                int slot = -1;
+                var slot = -1;
 
                 try
                 {

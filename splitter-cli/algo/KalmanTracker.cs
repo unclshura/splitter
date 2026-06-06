@@ -35,8 +35,8 @@ public sealed class KalmanTracker
         _state[3] = 0;
 
         // Large initial uncertainty
-        for (int i = 0; i < 4; i++)
-            for (int j = 0; j < 4; j++)
+        for (var i = 0; i < 4; i++)
+            for (var j = 0; j < 4; j++)
                 _p[i, j] = (i == j) ? 1f : 0f;
     }
 
@@ -63,16 +63,16 @@ public sealed class KalmanTracker
             var z = measurement.Value;
 
             // Innovation y = z - Hx
-            float yx = z.X - _state[0];
-            float yy = z.Y - _state[1];
+            var yx = z.X - _state[0];
+            var yy = z.Y - _state[1];
 
             // Innovation covariance S = P + R
-            float Sx = _p[0, 0] + _r;
-            float Sy = _p[1, 1] + _r;
+            var Sx = _p[0, 0] + _r;
+            var Sy = _p[1, 1] + _r;
 
             // Kalman gain K = P / S
-            float Kx0 = _p[0, 0] / Sx;
-            float Kx1 = _p[1, 1] / Sy;
+            var Kx0 = _p[0, 0] / Sx;
+            var Kx1 = _p[1, 1] / Sy;
 
             // Update state
             _state[0] += Kx0 * yx;
