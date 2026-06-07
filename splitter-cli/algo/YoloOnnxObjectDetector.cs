@@ -78,7 +78,7 @@ public sealed class YoloOnnxObjectDetector : LoggingBase, IObjectDetector, IDisp
         _inputs.Add(NamedOnnxValue.CreateFromTensor(_inputName, _inputTensor));
     }
 
-    public List<(Rect box, Point2f center)> DetectAll(Mat frameCont)
+    public List<(Rect box, Point2f center)> DetectAll(SingleTask job, Mat frameCont)
     {
         if (frameCont.Empty())
         {

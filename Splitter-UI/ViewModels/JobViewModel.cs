@@ -258,7 +258,18 @@ public partial class JobViewModel : ObservableObject
             Preview      = new PreviewData(frame, [], null, Job.GravitateTo ?? new (0.5f, 0.5f));
 
             var detector = _detectorFactory(Job.Detect ?? "");
-            var detections = detector.DetectAll(frame.ToMatContinuous());
+            var j = new SingleTask
+            (
+                Job             : Job,
+                Info            : Probe,
+                OutputFileName  : "preview.jpg",
+                SegmentIndex    : 0,
+                TotalSegments   : 1,
+                SegmentStart    : PositionSeconds,
+                SegmentLength   : 1, // 1 second segment for detection
+                ProcessorFactory: _ => throw new NotImplementedException()
+            );
+            var detections = detector.DetectAll(j, frame.ToMatContinuous());
 
             Rect? crop = null;
             if (detections.Count > 0)

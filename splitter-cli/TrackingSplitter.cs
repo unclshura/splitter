@@ -130,7 +130,7 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
 
                 Marshal.Copy(inBuffer, 0, frameMat.Data, inBytes);
 
-                var objects = _detector.DetectAll(frameMat);
+                var objects = _detector.DetectAll(job, frameMat);
                 var primary = SelectTrackedObject(objects, kalman.LastMeasurement);
 
                 camera.Update(primary);

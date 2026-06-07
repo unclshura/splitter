@@ -5,11 +5,11 @@ public class SingleThreadedDetector<T>(IObjectDetector _detector) : IObjectDetec
 {
     private Lock _lock = new();
 
-    public List<(OpenCvSharp.Rect box, Point2f center)> DetectAll(Mat frameCont)
+    public List<(OpenCvSharp.Rect box, Point2f center)> DetectAll(SingleTask job, Mat frameCont)
     {
         lock (_lock)
         {
-            return _detector.DetectAll(frameCont);
+            return _detector.DetectAll(job, frameCont);
         }
     }
     

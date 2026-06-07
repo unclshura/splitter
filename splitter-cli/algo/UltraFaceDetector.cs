@@ -23,7 +23,7 @@ public sealed class UltraFaceDetector: LoggingBase, IDisposable, IObjectDetector
         _ultraFace = UltraFace.Create(param);
     }
 
-    public List<(Rect box, Point2f center)> DetectAll(Mat frameCont)
+    public List<(Rect box, Point2f center)> DetectAll(SingleTask job, Mat frameCont)
     {
         // Convert to byte[] for UltraFace
         var bytesFull = frameCont.Rows * frameCont.Cols * frameCont.ElemSize();
