@@ -31,6 +31,11 @@ public class SingleJob
     /// </summary>
     public Point2f?                   GravitateTo            { get; set; }
     /// <summary>
+    /// Face or human detectors should only report detections if their upper bound starts below this threshold. 
+    /// This is a value between 0.0 and 1.0 mapped to 0..Height.
+    /// </summary>
+    public float                      DetectAbove            { get; set; } = 0.3f;
+    /// <summary>
     /// Destination file mask.
     /// </summary>
     public string?                    Mask                   { get; set; }

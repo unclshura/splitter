@@ -18,6 +18,10 @@ public sealed class PreviewCanvas : Control
     public static readonly StyledProperty<Point2f> GravitateToProperty =
         AvaloniaProperty.Register<PreviewCanvas, Point2f>(nameof(GravitateTo));
 
+    // normalized 0..1 from top of frame
+    public static readonly StyledProperty<float> DetectAboveProperty =
+        AvaloniaProperty.Register<PreviewCanvas, float>(nameof(DetectAbove), 0.2f);
+
     public PreviewData? Preview
     {
         get => GetValue(PreviewProperty);
@@ -43,9 +47,19 @@ public sealed class PreviewCanvas : Control
         set => SetValue(GravitateToProperty, value);
     }
 
-    private bool           _dragging;
+    // DetectAbove is normalized (0..1) from top
+    public float DetectAbove
+    {
+        get => GetValue(DetectAboveProperty);
+        set => SetValue(DetectAboveProperty, value);
+    }
+
+    private bool           _draggingGravitate;
     private Avalonia.Point _dragStartCanvas;
     private Point2f        _dragStartValue;
+
+    private bool           _draggingDetectAbove;
+    private double         _dragStartDetectAbove; // normalized 0..1
 
     static PreviewCanvas()
     {
@@ -229,6 +243,65 @@ public sealed class PreviewCanvas : Control
     }
 
     // ------------------------------------------------------------
+    // Hit test for DetectAbove knob (normalized)
+    // ------------------------------------------------------------
+
+    private bool HitDetectAbove(Avalonia.Point p, out double value)
+    {
+        value = default;
+
+        var preview = Preview;
+        if (preview?.Frame is null)
+            return false;
+
+        var rawW = preview.Frame.PixelSize.Width;
+        var rawH = preview.Frame.PixelSize.Height;
+
+        var rotate = RotateAngle;
+        var sar = Sar ?? new Point2f(1, 1);
+        var pixelAspect = sar.X / sar.Y;
+
+        var dispW = Bounds.Width;
+        var dispH = Bounds.Height;
+
+        double displayW, displayH;
+        if (rotate == 0 || rotate == 180)
+        {
+            displayW = rawW * pixelAspect;
+            displayH = rawH;
+        }
+        else
+        {
+            displayW = rawW;
+            displayH = rawH * pixelAspect;
+        }
+
+        var scale = Math.Min(dispW / displayW, dispH / displayH);
+        var offsetX = (dispW - displayW * scale) / 2;
+        var offsetY = (dispH - displayH * scale) / 2;
+
+        var da = DetectAbove;
+        var py = da * rawH;
+        var px = rawW / 2.0;
+
+        var (cx, cy) = TransformPoint(
+            px, py,
+            rawW, rawH,
+            offsetX, offsetY,
+            scale,
+            rotate,
+            pixelAspect);
+
+        const double radius = 10;
+        var hit = (p.X - cx) * (p.X - cx) + (p.Y - cy) * (p.Y - cy) <= radius * radius;
+
+        if (hit)
+            value = da;
+
+        return hit;
+    }
+
+    // ------------------------------------------------------------
     // Pointer events
     // ------------------------------------------------------------
 
@@ -238,23 +311,32 @@ public sealed class PreviewCanvas : Control
 
         if (HitGravitate(p, out var g))
         {
-            _dragging = true;
+            _draggingGravitate = true;
             _dragStartCanvas = p;
             _dragStartValue = g; // normalized
+            e.Pointer.Capture(this);
+            return;
+        }
+
+        if (HitDetectAbove(p, out var da))
+        {
+            _draggingDetectAbove = true;
+            _dragStartCanvas = p;
+            _dragStartDetectAbove = da; // normalized
             e.Pointer.Capture(this);
         }
     }
 
     private void OnPointerMoved(object? sender, PointerEventArgs e)
     {
-        if (!_dragging || Preview?.Frame is null)
+        var preview = Preview;
+        if (preview?.Frame is null)
             return;
 
         var p = e.GetPosition(this);
         var dxCanvas = p.X - _dragStartCanvas.X;
         var dyCanvas = p.Y - _dragStartCanvas.Y;
 
-        var preview = Preview;
         var rawW = preview.Frame.PixelSize.Width;
         var rawH = preview.Frame.PixelSize.Height;
 
@@ -287,43 +369,74 @@ public sealed class PreviewCanvas : Control
         else
             dy /= pixelAspect;
 
-        // start normalized → pixel
-        var gx = _dragStartValue.X * rawW + dx;
-        var gy = _dragStartValue.Y * rawH + dy;
-
-        switch (rotate)
+        if (_draggingGravitate)
         {
-            case 90:
-                (gx, gy) = (gy, rawH - gx);
-                break;
-            case 180:
-                gx = rawW - gx;
-                gy = rawH - gy;
-                break;
-            case 270:
-                (gx, gy) = (rawW - gy, gx);
-                break;
+            var gx = _dragStartValue.X * rawW + dx;
+            var gy = _dragStartValue.Y * rawH + dy;
+
+            switch (rotate)
+            {
+                case 90:
+                    (gx, gy) = (gy, rawH - gx);
+                    break;
+                case 180:
+                    gx = rawW - gx;
+                    gy = rawH - gy;
+                    break;
+                case 270:
+                    (gx, gy) = (rawW - gy, gx);
+                    break;
+            }
+
+            var nx = (float)(gx / rawW);
+            var ny = (float)(gy / rawH);
+
+            if (nx < 0) nx = 0;
+            if (ny < 0) ny = 0;
+            if (nx > 1) nx = 1;
+            if (ny > 1) ny = 1;
+
+            GravitateTo = new Point2f(nx, ny);
         }
+        else if (_draggingDetectAbove)
+        {
+            var gx = rawW / 2.0;
+            var gy = _dragStartDetectAbove * rawH + dy;
 
-        // pixel → normalized
-        var nx = (float)(gx / rawW);
-        var ny = (float)(gy / rawH);
+            switch (rotate)
+            {
+                case 90:
+                    (gx, gy) = (gy, rawH - gx);
+                    break;
+                case 180:
+                    gx = rawW - gx;
+                    gy = rawH - gy;
+                    break;
+                case 270:
+                    (gx, gy) = (rawW - gy, gx);
+                    break;
+            }
 
-        if (nx < 0) nx = 0;
-        if (ny < 0) ny = 0;
-        if (nx > 1) nx = 1;
-        if (ny > 1) ny = 1;
+            var ny = gy / rawH;
+            if (ny < 0) ny = 0;
+            if (ny > 1) ny = 1;
 
-        GravitateTo = new Point2f(nx, ny);
+            DetectAbove = (float)ny;
+        }
+        else
+        {
+            return;
+        }
 
         Dispatcher.UIThread.Post(InvalidateVisual, DispatcherPriority.Render);
     }
 
     private void OnPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
-        if (_dragging)
+        if (_draggingGravitate || _draggingDetectAbove)
         {
-            _dragging = false;
+            _draggingGravitate = false;
+            _draggingDetectAbove = false;
             e.Pointer.Capture(null);
         }
     }
@@ -418,6 +531,55 @@ public sealed class PreviewCanvas : Control
         }
     }
 
+    private void RenderDetectAbove(
+        DrawingContext context,
+        PreviewData preview,
+        double rawW, double rawH,
+        double offsetX, double offsetY,
+        double scale,
+        int rotate,
+        double pixelAspect)
+    {
+        var da = DetectAbove;
+        var rawY = da * rawH;
+
+        var (x1, y1) = TransformPoint(
+            0, rawY,
+            rawW, rawH,
+            offsetX, offsetY,
+            scale,
+            rotate,
+            pixelAspect);
+
+        var (x2, y2) = TransformPoint(
+            rawW, rawY,
+            rawW, rawH,
+            offsetX, offsetY,
+            scale,
+            rotate,
+            pixelAspect);
+
+        var pen = new Pen(Brushes.Lime, 2);
+        context.DrawLine(pen, new Avalonia.Point(x1, y1), new Avalonia.Point(x2, y2));
+
+        const double radius = 10;
+        var (kx, ky) = TransformPoint(
+            rawW / 2.0, rawY,
+            rawW, rawH,
+            offsetX, offsetY,
+            scale,
+            rotate,
+            pixelAspect);
+
+        var knob = new EllipseGeometry(
+            new Rect(kx - radius, ky - radius, radius * 2, radius * 2));
+
+        var knobPen = new Pen(Brushes.Lime, 2);
+        var knobBrush = Brushes.Lime;
+
+        context.DrawGeometry(knobBrush, knobPen, knob);
+    }
+
     // ------------------------------------------------------------
     // Main Render
     // ------------------------------------------------------------
@@ -474,5 +636,6 @@ public sealed class PreviewCanvas : Control
         RenderDetectedBoxes(context, preview, rawW, rawH, offsetX, offsetY, scale, rotate, pixelAspect);
         RenderCropRectangle(context, preview, rawW, rawH, offsetX, offsetY, scale, rotate, pixelAspect);
         RenderGravitateTo(context, preview, rawW, rawH, offsetX, offsetY, scale, rotate, pixelAspect);
+        RenderDetectAbove(context, preview, rawW, rawH, offsetX, offsetY, scale, rotate, pixelAspect);
     }
 }

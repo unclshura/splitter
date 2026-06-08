@@ -139,10 +139,6 @@ public sealed class YoloOnnxObjectDetector : LoggingBase, IObjectDetector, IDisp
             w = Math.Clamp(w, 1, frameCont.Width - x);
             h = Math.Clamp(h, 1, frameCont.Height - y);
 
-            // Ignore detections starting in the lower 1/2 of the frame
-            if (y > frameCont.Height * 0.5f)
-                continue;
-
             var rect   = new Rect(x, y, w, h);
             var center = new Point2f(x + w / 2f, y + h / 2f);
 

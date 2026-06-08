@@ -194,6 +194,17 @@ public partial class JobViewModel : ObservableObject
         }
     }
 
+    public float DetectAbove
+    {
+        get => Job.DetectAbove;
+        set
+        {
+            Job.DetectAbove = value;
+            OnPropertyChanged();
+            Task.Run(CreatePreview);
+        }
+    }
+
     public double? OverrideTargetDuration
     {
         get => Job.OverrideTargetDuration;

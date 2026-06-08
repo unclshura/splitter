@@ -90,6 +90,14 @@ public sealed class CommandLine
             {
                 Master.Crop = ParseCrop(arg.Substring("--crop=".Length));
             }
+            else if (arg.StartsWith("--detect-above="))
+            {
+                var val = arg.Substring("--detect-above=".Length);
+                if (float.TryParse(val, NumberStyles.Float, CultureInfo.InvariantCulture, out var detectAbove) && detectAbove >= 0.0f && detectAbove <= 1.0f)
+                    Master.DetectAbove = detectAbove;
+                else
+                    Master.DetectAbove = 0.7f;
+            }
             else if (arg == "--crop")
             {
                 Master.Crop = ParseCrop("");
@@ -350,6 +358,9 @@ Options:
 
   --detect=<name>        Object detector to use for tracking.
                          Values: face (UltraFace), body (YoloOnnx, default), none (no tracking, just a center)
+
+  --detect-above=<0-1>   Face or human detectors should only report detections if their upper bound starts below this threshold. 
+                         This is a value between 0.0 and 1.0 mapped to 0..Height.
 
   --gravitate=<x:y>      Gravitate towards a specific point (x, y) in the video frame when tracking.
                          Coordinates are normalized (0.0 to 1.0).

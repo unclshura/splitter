@@ -23,6 +23,18 @@ public partial class PreviewPaneViewModel : ObservableObject
         }
     }
 
+    public float DetectAbove
+    {
+        get => Selected?.DetectAbove ?? 0.7f;
+        set
+        {
+            if (Selected == null)
+                return;
+            Selected.DetectAbove = value;
+            OnPropertyChanged(nameof(DetectAbove));
+        }
+    }
+
     partial void OnSelectedChanged(JobViewModel? oldValue, JobViewModel? newValue)
     {
         if (oldValue != null)
