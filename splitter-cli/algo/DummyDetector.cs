@@ -7,7 +7,7 @@ public sealed class DummyDetector : IObjectDetector
         var h   = job.Info.Height;
         var w   = job.Info.Width;
 
-        var c = job.Job.GravitateTo ?? new Point2f(0.5f, 0.5f);
+        var c = job.Job.GravitateTo;
         var x = (int)(c.X * w);
         var y = (int)(c.Y * h);
 

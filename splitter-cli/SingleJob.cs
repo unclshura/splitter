@@ -29,12 +29,7 @@ public class SingleJob
     /// such as left-center (0.2, 0.5) or top-right (0.8, 0.2). This can be useful for 
     /// videos where the subject tends to be off-center or for creative framing choices.
     /// </summary>
-    public Point2f?                   GravitateTo            { get; set; }
-    /// <summary>
-    /// Face or human detectors should only report detections if their upper bound starts below this threshold. 
-    /// This is a value between 0.0 and 1.0 mapped to 0..Height.
-    /// </summary>
-    public float                      DetectAbove            { get; set; } = 0.3f;
+    public Point2f                    GravitateTo            { get; set; } = new Point2f(0.5f, 0.5f);
     /// <summary>
     /// Destination file mask.
     /// </summary>
@@ -49,6 +44,15 @@ public class SingleJob
     /// body (YoloOnnx, default), none (no tracking, just a center point).
     /// </summary>
     public string?                    Detect                 { get; set; }
+    /// <summary>
+    /// Detection confidence threshold. This is a value between 0.0 and 1.0 that sets the minimum confidence
+    /// </summary>
+    public float                      ScoreThreshold         { get; set; } = 0.25f;
+    /// <summary>
+    /// Face or human detectors should only report detections if their upper bound starts below this threshold. 
+    /// This is a value between 0.0 and 1.0 mapped to 0..Height.
+    /// </summary>
+    public float                      DetectAbove            { get; set; } = 0.7f;
     /// <summary>
     /// Set starget segments length explicitly. By default, the splitter calculates segment 
     /// lengths to be equal and not exceed 58 seconds.

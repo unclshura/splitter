@@ -15,7 +15,7 @@ public partial class JobViewModel : ObservableObject
     public SingleJob GetJob() => Job;
 
     [ObservableProperty] private VideoInfo?    _probe;
-    [ObservableProperty] private PreviewData?  _preview = new(null, [], null, new(0.5f, 0.5f));
+    [ObservableProperty] private PreviewData?  _preview = new(null, [], null, new(0.5f, 0.5f), TimeSpan.Zero, null);
     [ObservableProperty] private Bitmap?       _thumbnail;
     [ObservableProperty] private double        _sliderLiveValue;
     [ObservableProperty] private double        _positionSeconds;
@@ -70,7 +70,7 @@ public partial class JobViewModel : ObservableObject
         {
             if (string.IsNullOrWhiteSpace(value))
             {
-                Job.GravitateTo = null;
+                Job.GravitateTo = new Point2f(0.5f, 0.5f);
             }
             else
             {
@@ -106,6 +106,19 @@ public partial class JobViewModel : ObservableObject
                 return;
             Job.Detect = value;
             OnPropertyChanged();
+        }
+    }
+
+    public float ScoreThreshold
+    {
+        get => Job.ScoreThreshold;
+        set
+        {
+            if (Math.Abs(Job.ScoreThreshold - value) < 0.001)
+                return;
+            Job.ScoreThreshold = value;
+            OnPropertyChanged();
+            Task.Run(CreatePreview);
         }
     }
 
@@ -182,10 +195,10 @@ public partial class JobViewModel : ObservableObject
 
     public Point2f GravitateTo
     {
-        get => Job.GravitateTo ?? new Point2f(0.5f, 0.5f);
+        get => Job.GravitateTo;
         set
         {
-            if (Job.GravitateTo != null && Math.Abs(Job.GravitateTo.Value.X - value.X) < 0.001 && Math.Abs(Job.GravitateTo.Value.Y - value.Y) < 0.001)
+            if (Math.Abs(Job.GravitateTo.X - value.X) < 0.001 && Math.Abs(Job.GravitateTo.Y - value.Y) < 0.001)
                 return;
 
             Job.GravitateTo = value;
@@ -199,6 +212,8 @@ public partial class JobViewModel : ObservableObject
         get => Job.DetectAbove;
         set
         {
+            if (Math.Abs(Job.DetectAbove - value) < 0.001 )
+                return;
             Job.DetectAbove = value;
             OnPropertyChanged();
             Task.Run(CreatePreview);
@@ -262,11 +277,17 @@ public partial class JobViewModel : ObservableObject
             return;
         try
         {
-            var frame    = await _thumbnails.CreateThumbnailAsync(Job.InputFile, Probe, TimeSpan.FromSeconds(PositionSeconds), Probe.Width, Probe.Height, Job.Rotate);
+            var pos = TimeSpan.FromSeconds(PositionSeconds);
+
+            Bitmap? frame;
+            if (Preview?.Frame == null || Preview.Position != pos) 
+                frame = await _thumbnails.CreateThumbnailAsync(Job.InputFile, Probe, pos, Probe.Width, Probe.Height, Job.Rotate);
+            else
+                frame = Preview.Frame;
             if (  frame == null )
                 return;
 
-            Preview      = new PreviewData(frame, [], null, Job.GravitateTo ?? new (0.5f, 0.5f));
+            Preview      = new PreviewData(frame, [], null, Job.GravitateTo, pos, Job.Rotate);
 
             var detector = _detectorFactory(Job.Detect ?? "");
             var j = new SingleTask
@@ -304,7 +325,7 @@ public partial class JobViewModel : ObservableObject
             }
 
             var boxes = detections.Select(x => x.box).ToList();
-            Preview = new PreviewData(frame, boxes, crop, Job.GravitateTo ?? new (0.5f, 0.5f));
+            Preview = new PreviewData(frame, boxes, crop, Job.GravitateTo, pos, Job.Rotate);
         }
         catch (Exception ex)
         {

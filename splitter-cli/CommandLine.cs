@@ -98,6 +98,14 @@ public sealed class CommandLine
                 else
                     Master.DetectAbove = 0.7f;
             }
+            else if (arg.StartsWith("--score-threshold="))
+            {
+                var val = arg.Substring("--score-threshold=".Length);
+                if (float.TryParse(val, NumberStyles.Float, CultureInfo.InvariantCulture, out var scoreThreshold) && scoreThreshold >= 0.0f && scoreThreshold <= 1.0f)
+                    Master.ScoreThreshold = scoreThreshold;
+                else
+                    Master.ScoreThreshold = 0.25f;
+            }
             else if (arg == "--crop")
             {
                 Master.Crop = ParseCrop("");
@@ -224,22 +232,22 @@ public sealed class CommandLine
         return key.Length > 0;
     }
 
-    private static Point2f? ParseGravitate(string value)
+    private static Point2f ParseGravitate(string value)
     {
         // Expected format: "<x>:<y>"
         var parts = value.Split(':');
         if (parts.Length != 2)
-            return null;
+            return new Point2f(0.5f, 0.5f);
 
         if (!float.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var x))
-            return null;
+            return new Point2f(0.5f, 0.5f);
 
         if (!float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var y))
-            return null;
+            return new Point2f(0.5f, 0.5f);
 
         // Normalized range check (0.0–1.0)
         if (x < 0f || x > 1f || y < 0f || y > 1f)
-            return null;
+            return new Point2f(0.5f, 0.5f);
 
         return new Point2f(x, y);
     }

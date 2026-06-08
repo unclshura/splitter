@@ -58,7 +58,7 @@ public sealed class CameraController
         _kalman.Reset(_cameraCenter);
     }
 
-    private Point2f DefaultCenter => _cmd.GravitateTo ?? new Point2f(_videoWidth / 2f, _videoHeight / 2f);
+    private Point2f DefaultCenter => _cmd.GravitateTo;
 
     public int LostFrames         => _lostFrames;
     public Point2f CameraCenter   => _cameraCenter;

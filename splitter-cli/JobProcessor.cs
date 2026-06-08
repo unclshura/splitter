@@ -64,7 +64,7 @@ public class JobProcessor(ILogger logger) : LoggingBase(logger, 0), IJobProcesso
                 IObjectDetector detector = job.Detect switch
                 {
                     "face" => new UltraFaceDetector(_logger),
-                    "body" => new YoloOnnxObjectDetector(_logger),
+                    "body" => new YoloV10ObjectDetector(_logger),
                     "none" => new DummyDetector(),
                     _      => throw new InvalidOperationException($"Unknown detector: {job.Detect}")
                 };

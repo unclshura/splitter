@@ -13,7 +13,7 @@ Splitter pipeline is:
   * FFMpeg used to decode video frames into OpenCVSharp.Mat
   * One of detectors used:
     - For face detection: [opencv_zoo/models/face_detection_yunet at main opencv/opencv_zoo](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet)
-    - For body detection: [yolov8s.pt Ultralytics/YOLOv8 at main](https://huggingface.co/Ultralytics/YOLOv8/blob/main/yolov8s.pt)
+    - For body detection: [THU-MIG/yolov10: YOLOv10: Real-Time End-to-End Object Detection [NeurIPS 2024]](https://github.com/THU-MIG/yolov10/tree/main)
   * Camera control aplied (CameraControl class)
   * Final video frames are encoded back to video file using FFMpeg
 

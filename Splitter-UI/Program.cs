@@ -36,16 +36,16 @@ internal sealed class Program
 
         // splitter services
         services.AddSingleton<UltraFaceDetector>();
-        services.AddSingleton<YoloOnnxObjectDetector>();
+        services.AddSingleton<YoloV10ObjectDetector>();
         services.AddSingleton( x => new SingleThreadedDetector<UltraFaceDetector>(x.GetRequiredService<UltraFaceDetector>()) );
-        services.AddSingleton(x => new SingleThreadedDetector<YoloOnnxObjectDetector>(x.GetRequiredService<YoloOnnxObjectDetector>()));
+        services.AddSingleton(x => new SingleThreadedDetector<YoloV10ObjectDetector>(x.GetRequiredService<YoloV10ObjectDetector>()));
         services.AddSingleton(x => new SingleThreadedDetector<DummyDetector>(x.GetRequiredService<DummyDetector>()));
         services.AddSingleton<Func<string, IObjectDetector>>( x => detectorName =>
         {
             return detectorName switch
             {
                 "face" => x.GetRequiredService<SingleThreadedDetector<UltraFaceDetector>>(),
-                "body" => x.GetRequiredService<SingleThreadedDetector<YoloOnnxObjectDetector>>(),
+                "body" => x.GetRequiredService<SingleThreadedDetector<YoloV10ObjectDetector>>(),
                 "none" => x.GetRequiredService<SingleThreadedDetector<DummyDetector>>(),
                 _ => new DummyDetector()
             };
