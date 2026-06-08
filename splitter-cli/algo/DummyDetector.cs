@@ -2,7 +2,7 @@
 
 public sealed class DummyDetector : IObjectDetector
 {
-    public List<(Rect box, Point2f center)> DetectAll(SingleTask job, Mat frameCont)
+    public List<DetectedPerson> DetectAll(SingleTask job, Mat frameCont)
     {
         var h   = job.Info.Height;
         var w   = job.Info.Width;
@@ -14,7 +14,7 @@ public sealed class DummyDetector : IObjectDetector
         var center = new Point2f(x, y);
         var rect = new Rect(x - 1, y - 1, 2, 2);
 
-        return [(rect, center)];
+        return [new DetectedPerson { Box = rect, Center = center }];
     }
 
     public void Dispose() {}

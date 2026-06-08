@@ -68,7 +68,9 @@ public class JobProcessor(ILogger logger) : LoggingBase(logger, 0), IJobProcesso
                     "none" => new DummyDetector(),
                     _      => throw new InvalidOperationException($"Unknown detector: {job.Detect}")
                 };
-                return new TrackingSplitter(i, detector, job, _logger);
+                var osnet = new OSNetEmbeddingExtractor();
+                var tracker = new ObjectTracker(detector, osnet);
+                return new TrackingSplitter(i, tracker, job, _logger);
             };
         }
         else

@@ -5,7 +5,7 @@ public class SingleThreadedDetector<T>(IObjectDetector _detector) : IObjectDetec
 {
     private Lock _lock = new();
 
-    public List<(OpenCvSharp.Rect box, Point2f center)> DetectAll(SingleTask job, Mat frameCont)
+    public List<DetectedPerson> DetectAll(SingleTask job, Mat frameCont)
     {
         lock (_lock)
         {
@@ -18,4 +18,25 @@ public class SingleThreadedDetector<T>(IObjectDetector _detector) : IObjectDetec
         if ( _detector is IDisposable d )
             d.Dispose();
     }
+}
+
+public class SingleThreadedEmbeddingExtractor<T>(IEmbeddingExtractor _extractor) : IEmbeddingExtractor
+    where T : IEmbeddingExtractor
+{
+    private Lock _lock = new();
+
+    public float[] Extract(Mat frame, OpenCvSharp.Rect box)
+    {
+        lock (_lock)
+        {
+            return _extractor.Extract(frame, box);
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_extractor is IDisposable d)
+            d.Dispose();
+    }
+
 }

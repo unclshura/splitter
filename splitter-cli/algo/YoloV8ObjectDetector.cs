@@ -32,7 +32,7 @@ public sealed class YoloV8ObjectDetector : LoggingBase, IObjectDetector, IDispos
     private readonly List<Detection> _nmsBuffer  = new(256);
 
     // Reusable result list
-    private readonly List<(Rect box, Point2f center)> _results = new(64);
+    private readonly List<DetectedPerson> _results = new(64);
 
     private readonly float _inv255 = 1f / 255f;
 
@@ -78,7 +78,7 @@ public sealed class YoloV8ObjectDetector : LoggingBase, IObjectDetector, IDispos
         _inputs.Add(NamedOnnxValue.CreateFromTensor(_inputName, _inputTensor));
     }
 
-    public List<(Rect box, Point2f center)> DetectAll(SingleTask job, Mat frameCont)
+    public List<DetectedPerson> DetectAll(SingleTask job, Mat frameCont)
     {
         if (frameCont.Empty())
         {
@@ -142,7 +142,7 @@ public sealed class YoloV8ObjectDetector : LoggingBase, IObjectDetector, IDispos
             var rect   = new Rect(x, y, w, h);
             var center = new Point2f(x + w / 2f, y + h / 2f);
 
-            _results.Add((rect, center));
+            _results.Add(new DetectedPerson{ Box = rect, Center = center });
         }
 
         return _results;

@@ -4,24 +4,18 @@ using System.Runtime.InteropServices;
 
 namespace splitter;
 
-public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
+public class TrackingSplitter : LoggingBase, ISegmentProcessor
 {
-    private readonly IObjectDetector _detector;
+    private readonly IObjectTracker          _tracker;
 
     public TrackingSplitter(
         int  progressLine,
-        IObjectDetector detector,
+        IObjectTracker tracker,
         SingleJob cmd,
         ILogger logger)
         : base(logger, progressLine)
     {
-        _detector     = detector;
-    }
-
-    public void Dispose()
-    {
-        if (_detector is IDisposable d)
-            d.Dispose();
+        _tracker = tracker;
     }
 
     public async Task ProcessSegment(SingleTask job, CancellationToken token)
@@ -103,12 +97,12 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
 
         var kalman = new KalmanTracker();
         var camera = new CameraController(
-        videoWidth,
-        videoHeight,
-        job.Job.Crop.Value.width,
-        job.Job.Crop.Value.height,
-        kalman,
-        job.Job);
+            videoWidth,
+            videoHeight,
+            job.Job.Crop.Value.width,
+            job.Job.Crop.Value.height,
+            kalman,
+            job.Job);
 
         try
         {
@@ -130,12 +124,7 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
 
                 Marshal.Copy(inBuffer, 0, frameMat.Data, inBytes);
 
-                var objects = _detector.DetectAll(job, frameMat);
-
-                // Ignore detections starting in the lower 1/2 of the frame
-                objects = objects.Where(o => o.center.Y <= frameMat.Height * job.Job.DetectAbove).ToList();
-
-                var primary = SelectTrackedObject(objects, kalman.LastMeasurement);
+                var (objects, primary) = _tracker.SelectTrackedObject(job, frameMat, kalman.LastMeasurement);
 
                 camera.Update(primary);
                 var roi = camera.Roi;
@@ -389,7 +378,7 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
 
     private void DrawDebug(
         Mat frame,
-        System.Collections.Generic.List<(Rect box, Point2f center)> objects,
+        List<DetectedPerson> objects,
         CameraController camera,
         KalmanTracker kalman)
     {
@@ -418,52 +407,4 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor, IDisposable
             HersheyFonts.HersheySimplex, 0.6, color, 2);
     }
 
-    private (Rect box, Point2f center)? SelectTrackedObject(
-        List<(Rect box, Point2f center)> foundObjects,
-        Point2f? previousCenter)
-    {
-        if (foundObjects == null || foundObjects.Count == 0)
-            return null;
-
-        if (!previousCenter.HasValue)
-        {
-            var bestIndex = 0;
-            var bestArea  = float.MinValue;
-
-            for (var i = 0; i < foundObjects.Count; i++)
-            {
-                var f    = foundObjects[i];
-                var area = f.box.Width * f.box.Height;
-                if (area > bestArea)
-                {
-                    bestArea = area;
-                    bestIndex = i;
-                }
-            }
-
-            return foundObjects[bestIndex];
-        }
-        else
-        {
-            var prev      = previousCenter.Value;
-            var bestIndex = 0;
-            var bestDist2 = float.MaxValue;
-
-            for (var i = 0; i < foundObjects.Count; i++)
-            {
-                var f  = foundObjects[i];
-                var dx = f.center.X - prev.X;
-                var dy = f.center.Y - prev.Y;
-                var d2 = dx * dx + dy * dy;
-
-                if (d2 < bestDist2)
-                {
-                    bestDist2 = d2;
-                    bestIndex = i;
-                }
-            }
-
-            return foundObjects[bestIndex];
-        }
-    }
 }

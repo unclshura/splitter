@@ -307,7 +307,7 @@ public partial class JobViewModel : ObservableObject
             if (detections.Count > 0)
             {
                 var primaryDetection = detections
-                    .OrderByDescending(d => d.box.Height * d.box.Width)
+                    .OrderByDescending(d => d.Box.Height * d.Box.Width)
                     .FirstOrDefault();
 
                 var w = Probe.Width;
@@ -316,15 +316,15 @@ public partial class JobViewModel : ObservableObject
                 var cropWidth  = Job.Crop?.width  ?? CommandLine.DefaultW;
                 var cropHeight = Job.Crop?.height ?? CommandLine.DefaultH;
 
-                var cx = primaryDetection.center.X - cropWidth  / 2f;
-                var cy = primaryDetection.center.Y - cropHeight / 2f;
+                var cx = primaryDetection.Center.X - cropWidth  / 2f;
+                var cy = primaryDetection.Center.Y - cropHeight / 2f;
 
                 var r = new Rect(cx, cy, cropWidth, cropHeight);
 
                 crop = ClampCrop(r, w, h);
             }
 
-            var boxes = detections.Select(x => x.box).ToList();
+            var boxes = detections.Select(x => x.Box).ToList();
             Preview = new PreviewData(frame, boxes, crop, Job.GravitateTo, pos, Job.Rotate);
         }
         catch (Exception ex)

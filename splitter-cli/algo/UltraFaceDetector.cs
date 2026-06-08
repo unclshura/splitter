@@ -23,14 +23,14 @@ public sealed class UltraFaceDetector: LoggingBase, IDisposable, IObjectDetector
         _ultraFace = UltraFace.Create(param);
     }
 
-    public List<(Rect box, Point2f center)> DetectAll(SingleTask job, Mat frameCont)
+    public List<DetectedPerson> DetectAll(SingleTask job, Mat frameCont)
     {
         // Convert to byte[] for UltraFace
         var bytesFull = frameCont.Rows * frameCont.Cols * frameCont.ElemSize();
         var bgr = new byte[bytesFull];
         Marshal.Copy(frameCont.Data, bgr, 0, bytesFull);
 
-        var results = new List<(Rect box, Point2f center)>();
+        var results = new List<DetectedPerson>();
 
         if (bgr == null || bgr.Length == 0)
             return results;
@@ -69,7 +69,7 @@ public sealed class UltraFaceDetector: LoggingBase, IDisposable, IObjectDetector
                     rect.X + rect.Width / 2f,
                     rect.Y + rect.Height / 2f);
 
-                    results.Add((rect, center));
+                    results.Add(new DetectedPerson{ Box = rect, Center = center });
                 }
             }
         }

@@ -68,15 +68,15 @@ public sealed class CameraController
     public Point2f? ObjectCenter  => _objectCenter;
     public Rect Roi => _roi;
 
-    public void Update((Rect box, Point2f center)? primary)
+    public void Update(DetectedPerson? primary)
     {
         Rect?    objectBox    = null;
         Point2f? objectCenter = null;
 
         if (primary.HasValue)
         {
-            objectCenter = primary.Value.center;
-            objectBox = primary.Value.box;
+            objectCenter = primary.Value.Center;
+            objectBox = primary.Value.Box;
         }
 
         // ---------------------------------------------------------
