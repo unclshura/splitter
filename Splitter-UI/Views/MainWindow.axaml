@@ -7,8 +7,8 @@
     x:Class="Splitter_UI.Views.MainWindow"
     x:DataType="vm:MainViewModel"
     x:Name="Root"
-    Width="1400"
-    Height="950"
+    Width="1800"
+    Height="790"
     Title="Splitter UI"
     Icon="avares://Splitter-UI/Assets/splitter.png">
 
@@ -22,33 +22,31 @@
         <views:StatusBarView DockPanel.Dock="Bottom"
                              DataContext="{Binding StatusBar}" />
 
-        <!-- Log Pane -->
-        <views:LogPane DockPanel.Dock="Bottom" Height="150"
-                       DataContext="{Binding LogPane}" />
+        <Grid ColumnDefinitions="220,Auto,*,430"
+              IsVisible="{Binding TransformMode, Converter={StaticResource BoolInvertConverter}}">
 
-        <Grid>
-            <!-- Main Content -->
-            <Grid ColumnDefinitions="2*,3*,430" IsVisible="{Binding TransformMode, Converter={StaticResource BoolInvertConverter}}">
+            <!-- File List -->
+            <views:FileListView Grid.Column="0"
+                                DataContext="{Binding FileList}" />
 
-                <!-- File List -->
-                <views:FileListView Grid.Column="0"
-                                    DataContext="{Binding FileList}" />
+            <!-- Splitter -->
+            <GridSplitter Grid.Column="1"
+                          Width="6"
+                          Background="#404040"
+                          ResizeDirection="Columns"
+                          ResizeBehavior="PreviousAndNext"
+                          ShowsPreview="True" />
 
-                <!-- Preview -->
-                <views:PreviewPane Grid.Column="1"
-                                   DataContext="{Binding Preview}" />
+            <!-- Preview -->
+            <views:PreviewPane Grid.Column="2"
+                               DataContext="{Binding Preview}" />
 
-                <!-- Inspector -->
-                <views:InspectorPane Grid.Column="2"
-                                     DataContext="{Binding Inspector}" />
+            <!-- Inspector -->
+            <views:InspectorPane Grid.Column="3"
+                                 DataContext="{Binding Inspector}" />
 
-            </Grid>
-            
-            <!-- Progress view (replaces entire grid) -->
-            <views:ProgressView
-                DataContext="{Binding Progress}"
-                IsVisible="{Binding #Root.DataContext.TransformMode}"/>
         </Grid>
+
 
     </DockPanel>
 </Window>
