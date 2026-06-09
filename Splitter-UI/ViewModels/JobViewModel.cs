@@ -28,7 +28,7 @@ public partial class JobViewModel : ObservableObject
 
     private readonly IThumbnailService             _thumbnails;
     private readonly DispatcherTimer               _debounceTimer;
-    private readonly Func<string, IObjectDetector> _detectorFactory;
+    private readonly Func<string, IObjectTracker>  _trackerFactory;
     private readonly ILogger                       _log;
 
     public string FileName => Path.GetFileName(Job.InputFile);
@@ -220,6 +220,19 @@ public partial class JobViewModel : ObservableObject
         }
     }
 
+    public ulong? DetectId
+    {
+        get => Job.DetectId;
+        set
+        {
+            if (DetectId == value)
+                return;
+            Job.DetectId = value;
+            OnPropertyChanged();
+            Task.Run(CreatePreview);
+        }
+    }
+
     public double? OverrideTargetDuration
     {
         get => Job.OverrideTargetDuration;
@@ -231,11 +244,12 @@ public partial class JobViewModel : ObservableObject
             OnPropertyChanged();
         }
     }
-    public JobViewModel(SingleJob job, IThumbnailService thumbnails, Func<string, IObjectDetector> detectorFactory, ILogger log)
+
+    public JobViewModel(SingleJob job, IThumbnailService thumbnails, Func<string, IObjectTracker> trackerFactory, ILogger log)
     {
         Job              = job;
         _thumbnails      = thumbnails;
-        _detectorFactory = detectorFactory;
+        _trackerFactory = trackerFactory;
         _log             = log;
 
         ParametersList.Add(new ParameterEntry("DropoutToleranceFrames"      , ""));
@@ -271,6 +285,12 @@ public partial class JobViewModel : ObservableObject
         _debounceTimer.Tick += DebounceTimerTick;
     }
 
+    public void CopyFrom(JobViewModel src)
+    {
+        Job.CopyFrom(src.Job);
+        OnPropertyChanged(string.Empty); // Refresh all properties
+    }
+
     public async Task CreatePreview()
     {
         if ( Probe == null)
@@ -289,7 +309,7 @@ public partial class JobViewModel : ObservableObject
 
             Preview      = new PreviewData(frame, [], null, Job.GravitateTo, pos, Job.Rotate);
 
-            var detector = _detectorFactory(Job.Detect ?? "");
+            var tracker = _trackerFactory(Job.Detect ?? "");
             var j = new SingleTask
             (
                 Job             : Job,
@@ -301,31 +321,26 @@ public partial class JobViewModel : ObservableObject
                 SegmentLength   : 1, // 1 second segment for detection
                 ProcessorFactory: _ => throw new NotImplementedException()
             );
-            var detections = detector.DetectAll(j, frame.ToMatContinuous());
+
+            var (detections, primaryDetection) = tracker.SelectTrackedObject(j, frame.ToMatContinuous(), j.Job.GravitateTo);
 
             Rect? crop = null;
-            if (detections.Count > 0)
-            {
-                var primaryDetection = detections
-                    .OrderByDescending(d => d.Box.Height * d.Box.Width)
-                    .FirstOrDefault();
+            var w = Probe.Width;
+            var h = Probe.Height;
 
-                var w = Probe.Width;
-                var h = Probe.Height;
+            var cropWidth  = Job.Crop?.width  ?? CommandLine.DefaultW;
+            var cropHeight = Job.Crop?.height ?? CommandLine.DefaultH;
 
-                var cropWidth  = Job.Crop?.width  ?? CommandLine.DefaultW;
-                var cropHeight = Job.Crop?.height ?? CommandLine.DefaultH;
+            var p = primaryDetection?.Center ?? new Point2f(w * Job.GravitateTo.X, h * Job.GravitateTo.Y);
 
-                var cx = primaryDetection.Center.X - cropWidth  / 2f;
-                var cy = primaryDetection.Center.Y - cropHeight / 2f;
+            var cx = p.X - cropWidth  / 2f;
+            var cy = p.Y - cropHeight / 2f;
 
-                var r = new Rect(cx, cy, cropWidth, cropHeight);
+            var r = new Rect(cx, cy, cropWidth, cropHeight);
 
-                crop = ClampCrop(r, w, h);
-            }
+            crop = ClampCrop(r, w, h);
 
-            var boxes = detections.Select(x => x.Box).ToList();
-            Preview = new PreviewData(frame, boxes, crop, Job.GravitateTo, pos, Job.Rotate);
+            Preview = new PreviewData(frame, detections ?? [], crop, Job.GravitateTo, pos, Job.Rotate);
         }
         catch (Exception ex)
         {

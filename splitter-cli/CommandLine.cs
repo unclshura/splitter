@@ -86,6 +86,14 @@ public sealed class CommandLine
                 else
                     throw new FormatException($"Invalid --rotate value: {val}");
             }
+            else if (arg.StartsWith("--detect-id="))
+            {
+                var val = arg.Substring("--detect-id=".Length);
+                if (ulong.TryParse(val, out var detectId))
+                    Master.DetectId = detectId;
+                else
+                    throw new FormatException($"Invalid --detect-id value: {val}");
+            }
             else if (arg.StartsWith("--crop="))
             {
                 Master.Crop = ParseCrop(arg.Substring("--crop=".Length));
@@ -164,24 +172,11 @@ public sealed class CommandLine
 
         var files = inputFiles.SelectMany(x => FileMaskExpander.Expand(x));
 
-        Jobs = files.Select(x => new SingleJob
+        Jobs = files.Select(x =>
         {
-            InputFile              = x,
-            OutputFolder           = Master.OutputFolder,
-            Crop                   = Master.Crop,
-            GravitateTo            = Master.GravitateTo,
-            Mask                   = Master.Mask,
-            Debug                  = Master.Debug,
-            Detect                 = Master.Detect,
-            OverrideTargetDuration = Master.OverrideTargetDuration,
-            Passthrough            = Master.Passthrough,
-            PlainText              = Master.PlainText,
-            EstimateOnly           = Master.EstimateOnly,
-            ForceFixed             = Master.ForceFixed,
-            SingleThreaded         = Master.SingleThreaded,
-            Rotate                 = Master.Rotate,
-            RotateAuto             = Master.RotateAuto,
-            Parameters             = new Dictionary<string, string>(Master.Parameters)
+            var job = new SingleJob { InputFile = x };
+            Master.CopyTo(job);
+            return job;
         }).ToArray();
 
         if ( Jobs.Length == 0)
@@ -369,6 +364,11 @@ Options:
 
   --detect-above=<0-1>   Face or human detectors should only report detections if their upper bound starts below this threshold. 
                          This is a value between 0.0 and 1.0 mapped to 0..Height.
+
+  --detect-id=<hex>      Object ID to track. This is a hexadecimal string that identifies a specific face or 
+                         person to track across segments. This is useful when you want to consistently track the same person 
+                         across all segments of a video, even if there are multiple people present.
+                         The ID can be obtained when running with --debug or from the debug overlay.
 
   --gravitate=<x:y>      Gravitate towards a specific point (x, y) in the video frame when tracking.
                          Coordinates are normalized (0.0 to 1.0).

@@ -35,6 +35,18 @@ public partial class PreviewPaneViewModel : ObservableObject
         }
     }
 
+    public ulong? TrackedId
+    {
+        get => Selected?.DetectId;
+        set
+        {
+            if (Selected == null)
+                return;
+            Selected.DetectId = value;
+            OnPropertyChanged(nameof(TrackedId));
+        }
+    }
+
     partial void OnSelectedChanged(JobViewModel? oldValue, JobViewModel? newValue)
     {
         if (oldValue != null)
@@ -46,6 +58,8 @@ public partial class PreviewPaneViewModel : ObservableObject
         OnPropertyChanged(nameof(Preview));
         OnPropertyChanged(nameof(Sar));
         OnPropertyChanged(nameof(Rotate));
+        OnPropertyChanged(nameof(TrackedId));
+        OnPropertyChanged(nameof(DetectAbove));
     }
 
     private void SelectedPropertyChanged(object? sender, PropertyChangedEventArgs e)

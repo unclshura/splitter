@@ -8,7 +8,7 @@
     x:DataType="vm:MainViewModel"
     x:Name="Root"
     Width="1800"
-    Height="830"
+    Height="870"
     Title="Splitter UI"
     Icon="avares://Splitter-UI/Assets/splitter.png">
 

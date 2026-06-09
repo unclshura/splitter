@@ -30,22 +30,7 @@ public partial class InspectorPaneViewModel : ObservableObject
             return;
 
         foreach (JobViewModel job in Files.Where(x => !ReferenceEquals(x, Selected)))
-        {
-            job.Detect                 = Selected.Detect;
-            job.Rotate                 = Selected.Rotate;
-            job.CropText               = Selected.CropText;
-            job.ForceFixed             = Selected.ForceFixed;
-            job.GravitateText          = Selected.GravitateText;
-            job.Mask                   = Selected.Mask;
-            job.OutputFolder           = Selected.OutputFolder;
-            job.OverrideTargetDuration = Selected.OverrideTargetDuration;
-            job.PassthroughText        = Selected.PassthroughText;
-            job.Enhance                = Selected.Enhance;
-            
-            job.ParametersList.Clear();
-            foreach (var param in Selected.ParametersList)
-                job.ParametersList.Add(param);
-        }
+            job.CopyFrom(Selected);
     }
 
     public IRelayCommand RotateLeftCommand { get; }

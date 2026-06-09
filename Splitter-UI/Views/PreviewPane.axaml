@@ -16,6 +16,7 @@
                 RotateAngle="{Binding Rotate}"
                 GravitateTo="{Binding GravitateTo, Mode=TwoWay}"
                 DetectAbove="{Binding DetectAbove, Mode=TwoWay}"
+                DetectId="{Binding Selected.DetectId, Mode=TwoWay}"
                 />
 
             <Grid Grid.Row="1"

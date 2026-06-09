@@ -9,6 +9,21 @@ x:DataType="vm:InspectorPaneViewModel">
         <ScrollViewer>
             <StackPanel Spacing="2">
 
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Spacing="8"
+                            Margin="0,10,0,0">
+
+                    <Button Content="Apply to Selected"
+                            Command="{Binding ApplyOverridesCommand}"/>
+
+                    <Button Content="Transform all"
+                            Background="#AA0000"
+                            Foreground="White"
+                            Command="{Binding TransformAllCommand}"/>
+
+                </StackPanel>
+                
                 <TextBlock Text="Parameters" FontSize="10" Margin="0,0,0,10" FontWeight="Bold"/>
 
                 <!-- InputFile -->
@@ -111,6 +126,12 @@ x:DataType="vm:InspectorPaneViewModel">
                     <TextBox Text="{Binding Selected.DetectAbove}" Width="160"/>
                 </StackPanel>
 
+                <!-- DetectId -->
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="Object to track" Width="120"/>
+                    <TextBox Text="{Binding Selected.DetectId}" Width="160"/>
+                </StackPanel>
+
                 <!-- OverrideTargetDuration -->
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="Target Duration" Width="120"/>
@@ -181,22 +202,6 @@ x:DataType="vm:InspectorPaneViewModel">
                     <TextBlock Text="Passthrough" Width="120"/>
                     <TextBox Text="{Binding Selected.PassthroughText}" Width="260"/>
                 </StackPanel>
-
-                <StackPanel Orientation="Horizontal"
-                            HorizontalAlignment="Right"
-                            Spacing="8"
-                            Margin="0,10,0,0">
-
-                    <Button Content="Apply to Selected"
-                            Command="{Binding ApplyOverridesCommand}"/>
-
-                    <Button Content="Transform all"
-                            Background="#AA0000"
-                            Foreground="White"
-                            Command="{Binding TransformAllCommand}"/>
-
-                </StackPanel>
-
 
             </StackPanel>
         </ScrollViewer>

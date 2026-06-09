@@ -54,6 +54,13 @@ public class SingleJob
     /// </summary>
     public float                      DetectAbove            { get; set; } = 0.7f;
     /// <summary>
+    /// Object ID to track. This is a hexadecimal string that identifies a specific face or 
+    /// person to track across segments. This is useful when you want to consistently track the same person
+    /// publacross all segments of a video, even if there are multiple people present
+    /// The ID can be obtained when running with --debug or from the debug overlay.
+    /// </summary>
+    public ulong?                     DetectId               { get; set; }
+    /// <summary>
     /// Set starget segments length explicitly. By default, the splitter calculates segment 
     /// lengths to be equal and not exceed 58 seconds.
     /// </summary>
@@ -128,4 +135,28 @@ public class SingleJob
         }
     }
 
+    public void CopyTo(SingleJob target)
+    {
+        target.OutputFolder           = OutputFolder;
+        target.Crop                   = Crop;
+        target.GravitateTo            = GravitateTo;
+        target.Mask                   = Mask;
+        target.Debug                  = Debug;
+        target.Detect                 = Detect;
+        target.ScoreThreshold         = ScoreThreshold;
+        target.DetectAbove            = DetectAbove;
+        target.DetectId               = DetectId;
+        target.OverrideTargetDuration = OverrideTargetDuration;
+        target.Passthrough            = Passthrough.ToArray();
+        target.PlainText              = PlainText;
+        target.EstimateOnly           = EstimateOnly;
+        target.ForceFixed             = ForceFixed;
+        target.SingleThreaded         = SingleThreaded;
+        target.Rotate                 = Rotate;
+        target.RotateAuto             = RotateAuto;
+        target.Parameters             = new Dictionary<string, string>(Parameters);
+        target.Enhance                = Enhance;
+    }
+
+    public void CopyFrom(SingleJob source) => source.CopyTo(this);
 }

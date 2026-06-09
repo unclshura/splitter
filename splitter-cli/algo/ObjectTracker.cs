@@ -2,17 +2,21 @@
 
 public class ObjectTracker(IObjectDetector _detector, IEmbeddingExtractor _embeddingExtractor) : IObjectTracker
 {
-    public (List<DetectedPerson> /*objects*/, DetectedPerson? /*primary*/) SelectTrackedObject(SingleTask job, Mat frameMat, Point2f? lastMeasurement)
+    private readonly IdentityCache _identityCache = new();
+
+    public (List<DetectedPerson> objects, DetectedPerson? primary) SelectTrackedObject(SingleTask job, Mat frameMat, Point2f? lastMeasurement)
     {
         var objects = _detector.DetectAll(job, frameMat) ?? [];
 
-        // Ignore detections starting in the lower 1/2 of the frame
-        objects = objects.Where(o => o.Center.Y <= frameMat.Height * job.Job.DetectAbove).ToList();
+        // filter by DetectAbove
+        objects = objects
+            .Where(o => o.Center.Y <= frameMat.Height * job.Job.DetectAbove)
+            .ToList();
 
-        // attach embeddings to all persons
+        // attach embeddings
         for (int i = 0; i < objects.Count; i++)
         {
-            var p = objects[i];   // copy struct
+            var p = objects[i];
 
             var rect = p.Box;
 
@@ -21,37 +25,31 @@ public class ObjectTracker(IObjectDetector _detector, IEmbeddingExtractor _embed
             rect.Width  = Math.Clamp(rect.Width, 1, frameMat.Width - rect.X);
             rect.Height = Math.Clamp(rect.Height, 1, frameMat.Height - rect.Y);
 
-            var embedding = _embeddingExtractor.Extract(frameMat, rect);
-            p.Id = HashEmbedding(embedding); // assign ID based on embedding hash
+            var embedding = _embeddingExtractor.Extract(frameMat, rect).ToArray(); // make a copy of the embedding array
+            p.Id = _identityCache.ResolveId(embedding);
 
-            objects[i] = p;       // write back
+            objects[i] = p;
         }
 
-        var primary = SelectPrimaryObject(objects, lastMeasurement);
+        // DeepSeek tracker assigns stable IDs
+        var primary = SelectPrimaryObject(objects, lastMeasurement, job.Job.DetectId);
         return (objects, primary);
-    }
-
-    private static ulong HashEmbedding(float[] emb)
-    {
-        unchecked
-        {
-            ulong hash = 146527;
-            for (int i = 0; i < emb.Length; i++)
-            {
-                // convert float to int bits
-                uint bits = (uint)BitConverter.SingleToInt32Bits(emb[i]);
-                hash = (hash * 16777619) ^ bits;
-            }
-            return hash;
-        }
     }
 
     private DetectedPerson? SelectPrimaryObject(
         List<DetectedPerson> foundObjects,
-        Point2f? previousCenter)
+        Point2f? previousCenter,
+        ulong? detectId)
     {
         if (foundObjects == null || foundObjects.Count == 0)
             return null;
+
+        if (detectId != null)
+        {
+            var match = foundObjects.FirstOrDefault(o => o.Id == detectId.Value);
+            if (match.Id != 0) // default struct has Id=0, so this means we found a match
+                return match;
+        }
 
         if (!previousCenter.HasValue)
         {

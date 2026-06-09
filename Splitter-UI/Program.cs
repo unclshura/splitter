@@ -39,19 +39,16 @@ internal sealed class Program
         services.AddSingleton<YoloV10ObjectDetector>();
         services.AddSingleton<OSNetEmbeddingExtractor>();
         services.AddSingleton<IObjectTracker, ObjectTracker>();
-        services.AddSingleton(x => new SingleThreadedDetector<UltraFaceDetector>(x.GetRequiredService<UltraFaceDetector>()));
-        services.AddSingleton(x => new SingleThreadedDetector<YoloV10ObjectDetector>(x.GetRequiredService<YoloV10ObjectDetector>()));
-        services.AddSingleton(x => new SingleThreadedDetector<DummyDetector>(x.GetRequiredService<DummyDetector>()));
+        services.AddKeyedSingleton<IObjectDetector>("face", (x,_) => new SingleThreadedDetector<UltraFaceDetector>(x.GetRequiredService<UltraFaceDetector>()));
+        services.AddKeyedSingleton<IObjectDetector>("body", (x,_) => new SingleThreadedDetector<YoloV10ObjectDetector>(x.GetRequiredService<YoloV10ObjectDetector>()));
+        services.AddKeyedSingleton<IObjectDetector>("none", (x,_) => new SingleThreadedDetector<DummyDetector>(x.GetRequiredService<DummyDetector>()));
         services.AddSingleton<IEmbeddingExtractor>(x => new SingleThreadedEmbeddingExtractor<OSNetEmbeddingExtractor>(x.GetRequiredService<OSNetEmbeddingExtractor>()));
-        services.AddSingleton<Func<string, IObjectDetector>>( x => detectorName =>
+        services.AddSingleton<Func<string, IObjectDetector>>(x => detectorName => x.GetKeyedService<IObjectDetector>(detectorName) ?? new DummyDetector());
+        services.AddSingleton<Func<string, IObjectTracker>>(x => detectorName =>
         {
-            return detectorName switch
-            {
-                "face" => x.GetRequiredService<SingleThreadedDetector<UltraFaceDetector>>(),
-                "body" => x.GetRequiredService<SingleThreadedDetector<YoloV10ObjectDetector>>(),
-                "none" => x.GetRequiredService<SingleThreadedDetector<DummyDetector>>(),
-                _ => new DummyDetector()
-            };
+            var detectorFactory = x.GetRequiredService<Func<string, IObjectDetector>>();
+            var extractor       = x.GetRequiredService<IEmbeddingExtractor>();
+            return new ObjectTracker(detectorFactory(detectorName), extractor);
         });
         services.AddSingleton<ILogger, GlobalLogger>();
         services.AddSingleton<IJobProcessor, JobProcessor>();

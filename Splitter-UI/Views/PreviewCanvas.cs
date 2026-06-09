@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel;
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -17,10 +18,10 @@ public sealed class PreviewCanvas : Control
         AvaloniaProperty.Register<PreviewCanvas, int>(nameof(RotateAngle));
     public static readonly StyledProperty<Point2f> GravitateToProperty =
         AvaloniaProperty.Register<PreviewCanvas, Point2f>(nameof(GravitateTo));
-
-    // normalized 0..1 from top of frame
     public static readonly StyledProperty<float> DetectAboveProperty =
         AvaloniaProperty.Register<PreviewCanvas, float>(nameof(DetectAbove), 0.2f);
+    public static readonly StyledProperty<ulong?> DetectIdProperty =
+        AvaloniaProperty.Register<PreviewCanvas, ulong?>(nameof(DetectId));
 
     public PreviewData? Preview
     {
@@ -45,6 +46,12 @@ public sealed class PreviewCanvas : Control
     {
         get => GetValue(GravitateToProperty);
         set => SetValue(GravitateToProperty, value);
+    }
+
+    public ulong? DetectId
+    {
+        get => GetValue(DetectIdProperty);
+        set => SetValue(DetectIdProperty, value);
     }
 
     // DetectAbove is normalized (0..1) from top
@@ -181,30 +188,22 @@ public sealed class PreviewCanvas : Control
             h * scale);
     }
 
-    // ------------------------------------------------------------
-    // Hit test for gravitate point (normalized)
-    // ------------------------------------------------------------
-
-    private bool HitGravitate(Avalonia.Point p, out Point2f value)
+    private void GetAspects(
+        PreviewData preview,
+        out int rawW,
+        out int rawH,
+        out int rotate,
+        out float pixelAspect,
+        out double scale,
+        out double offsetX,
+        out double offsetY)
     {
-        value = default;
+        rawW = preview.Frame!.PixelSize.Width;
+        rawH = preview.Frame.PixelSize.Height;
+        rotate = RotateAngle;
 
-        var preview = Preview;
-        if (preview?.Frame is null)
-            return false;
-
-        var g = GravitateTo;
-
-        var rawW = preview.Frame.PixelSize.Width;
-        var rawH = preview.Frame.PixelSize.Height;
-
-        // normalized → pixel
-        double px = g.X * rawW;
-        double py = g.Y * rawH;
-
-        var rotate = RotateAngle;
         var sar = Sar ?? new Point2f(1, 1);
-        var pixelAspect = sar.X / sar.Y;
+        pixelAspect = sar.X / sar.Y;
 
         var dispW = Bounds.Width;
         var dispH = Bounds.Height;
@@ -221,9 +220,32 @@ public sealed class PreviewCanvas : Control
             displayH = rawH * pixelAspect;
         }
 
-        var scale = Math.Min(dispW / displayW, dispH / displayH);
-        var offsetX = (dispW - displayW * scale) / 2;
-        var offsetY = (dispH - displayH * scale) / 2;
+        scale = Math.Min(dispW / displayW, dispH / displayH);
+        offsetX = (dispW - displayW * scale) / 2;
+        offsetY = (dispH - displayH * scale) / 2;
+    }
+
+    // ------------------------------------------------------------
+    // Hit test for gravitate point (normalized)
+    // ------------------------------------------------------------
+
+    private bool HitGravitate(Avalonia.Point p, out Point2f value)
+    {
+        value = default;
+
+        var preview = Preview;
+        if (preview?.Frame is null)
+            return false;
+
+        var g = GravitateTo;
+
+        int rawW, rawH, rotate;
+        float pixelAspect;
+        double scale, offsetX, offsetY;
+        GetAspects(preview, out rawW, out rawH, out rotate, out pixelAspect, out scale, out offsetX, out offsetY);
+
+        double px = g.X * rawW;
+        double py = g.Y * rawH;
 
         var (cx, cy) = TransformPoint(
             px, py,
@@ -254,31 +276,10 @@ public sealed class PreviewCanvas : Control
         if (preview?.Frame is null)
             return false;
 
-        var rawW = preview.Frame.PixelSize.Width;
-        var rawH = preview.Frame.PixelSize.Height;
-
-        var rotate = RotateAngle;
-        var sar = Sar ?? new Point2f(1, 1);
-        var pixelAspect = sar.X / sar.Y;
-
-        var dispW = Bounds.Width;
-        var dispH = Bounds.Height;
-
-        double displayW, displayH;
-        if (rotate == 0 || rotate == 180)
-        {
-            displayW = rawW * pixelAspect;
-            displayH = rawH;
-        }
-        else
-        {
-            displayW = rawW;
-            displayH = rawH * pixelAspect;
-        }
-
-        var scale = Math.Min(dispW / displayW, dispH / displayH);
-        var offsetX = (dispW - displayW * scale) / 2;
-        var offsetY = (dispH - displayH * scale) / 2;
+        int rawW, rawH, rotate;
+        float pixelAspect;
+        double scale, offsetX, offsetY;
+        GetAspects(preview, out rawW, out rawH, out rotate, out pixelAspect, out scale, out offsetX, out offsetY);
 
         var da = DetectAbove;
         var py = da * rawH;
@@ -299,6 +300,42 @@ public sealed class PreviewCanvas : Control
             value = da;
 
         return hit;
+    }
+
+    // ------------------------------------------------------------
+    // Hit test for detected boxes
+    // ------------------------------------------------------------
+    private bool HitDetectedBox(Avalonia.Point p, out ulong? value)
+    {
+        value = null;
+
+        var preview = Preview;
+        if (preview?.Frame is null)
+            return false;
+
+        int rawW, rawH, rotate;
+        float pixelAspect;
+        double scale, offsetX, offsetY;
+        GetAspects(preview, out rawW, out rawH, out rotate, out pixelAspect, out scale, out offsetX, out offsetY);
+
+        var frame = preview.Frame;
+        foreach (var box in preview.DetectedBoxes)
+        {
+            var rect = TransformRect(
+                box.Box.X, box.Box.Y, box.Box.Width, box.Box.Height,
+                frame.PixelSize.Width, frame.PixelSize.Height,
+                offsetX, offsetY, scale,
+                RotateAngle,
+                Sar?.X / Sar?.Y ?? 1);
+
+            if (rect.Contains(p))
+            {
+                value = box.Id;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // ------------------------------------------------------------
@@ -324,6 +361,12 @@ public sealed class PreviewCanvas : Control
             _dragStartCanvas = p;
             _dragStartDetectAbove = da; // normalized
             e.Pointer.Capture(this);
+            return;
+        }
+
+        if (HitDetectedBox(p, out var id))
+        {
+            DetectId = id;
         }
     }
 
@@ -337,29 +380,10 @@ public sealed class PreviewCanvas : Control
         var dxCanvas = p.X - _dragStartCanvas.X;
         var dyCanvas = p.Y - _dragStartCanvas.Y;
 
-        var rawW = preview.Frame.PixelSize.Width;
-        var rawH = preview.Frame.PixelSize.Height;
-
-        var rotate = RotateAngle;
-        var sar = Sar ?? new Point2f(1, 1);
-        var pixelAspect = sar.X / sar.Y;
-
-        var dispW = Bounds.Width;
-        var dispH = Bounds.Height;
-
-        double displayW, displayH;
-        if (rotate == 0 || rotate == 180)
-        {
-            displayW = rawW * pixelAspect;
-            displayH = rawH;
-        }
-        else
-        {
-            displayW = rawW;
-            displayH = rawH * pixelAspect;
-        }
-
-        var scale = Math.Min(dispW / displayW, dispH / displayH);
+        int rawW, rawH, rotate;
+        float pixelAspect;
+        double scale, offsetX, offsetY;
+        GetAspects(preview, out rawW, out rawH, out rotate, out pixelAspect, out scale, out offsetX, out offsetY);
 
         var dx = dxCanvas / scale;
         var dy = dyCanvas / scale;
@@ -480,7 +504,6 @@ public sealed class PreviewCanvas : Control
     {
         var g = GravitateTo;
 
-        // normalized → pixel
         var px = g.X * rawW;
         var py = g.Y * rawH;
 
@@ -516,18 +539,24 @@ public sealed class PreviewCanvas : Control
             return;
 
         var pen = new Pen(Brushes.Lime, 2);
+        var selectedPen = new Pen(Brushes.Magenta, 2);
 
-        foreach (var r in preview.DetectedBoxes)
+        var detected = preview.DetectedBoxes.ToList();
+
+        foreach (var r in detected)
         {
             var rr = TransformRect(
-                r.X, r.Y, r.Width, r.Height,
+                r.Box.X, r.Box.Y, r.Box.Width, r.Box.Height,
                 rawW, rawH,
                 offsetX, offsetY,
                 scale,
                 rotate,
                 pixelAspect);
 
-            context.DrawRectangle(null, pen, rr);
+            context.DrawRectangle(null, r.Id == DetectId ? selectedPen : pen, rr);
+            context.DrawText(
+                new FormattedText($"ID: {r.Id}", CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, 12, r.Id == DetectId ? Brushes.Magenta : Brushes.Lime),
+                new Avalonia.Point(rr.X + 5, rr.Y + 5));
         }
     }
 
