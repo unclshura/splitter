@@ -1,5 +1,7 @@
 # Splitter
 
+This application was built to help me with maintaining my YouTube channel - [UnclShura](https://www.youtube.com/@UnclShura).
+
 Splitter is a high-performance command line tool for cutting one or more video files into equal or 
 fixed‑length segments using multi‑threaded FFmpeg execution. It supports batch input, flexible 
 duration formats, rotation, smart face/body‑aware cropping, ETA and speed reporting, with nice GUI 

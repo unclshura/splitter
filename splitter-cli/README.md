@@ -140,24 +140,41 @@ All option names are preserved exactly, and descriptions are consolidated for cl
 
 ## Options
 
-| Option | Description |
-|--------|-------------|
-| **--out=<folder>** | Output folder for generated segments. Default: `<input folder>/Splitter`. |
-| **--file=<path>** | Input file list or file mask. If omitted, the first non-option argument is used as input. Examples: `--file=videos/*.mp4`, `--file=file_list.txt`. |
-| **--mask=<pattern>** | Custom output filename pattern. Default: `[NAME]_seg[NN].[EXT]`. Supports `[NAME]`, `[N]`, `[NN]`, `[NNN]`, `[NNNN]`, `[EXT]`. Example: `--mask="[NAME]_[NNNN].mp4"`. |
-| **--duration=<value>** | Override target segment duration. Formats: `Ns`, `NmMs`, `N`. Examples: `--duration=90s`, `--duration=2m30s`, `--duration=45`. Without `--force`: max 58 seconds, equalized across segments. |
-| **--force** | Use the duration exactly as provided. Last segment may be shorter. |
-| **--enhance** | Enable video enhancement. Increases output resolution x4 using RealBasicVSR_x4 model. |
-| **--rotate=<degrees>** | Rotate video by 90, 180, or 270 degrees. Useful for correcting orientation metadata. |
-| **--rotate-auto** | Use automatic rotation detection. |
-| **--estimate** | Print calculated segment information and exit. No splitting is performed. |
-| **--crop[=<w:h>]** | Crop video to a target width and height with face/body tracking. Default: 607x1080. Ideal for Shorts, TikTok, Reels. |
-| **--detect=<name>** | Object detector for tracking. Values: `face` (UltraFace), `body` (YoloOnnx, default), `none` (center crop). |
-| **--gravitate=<x:y>** | Bias the crop window toward a normalized point in the frame. Example: `--gravitate=0.2:0.5`. |
-| **--text** | Use plain-text logging instead of the rich terminal UI. |
-| **--single-thread** | Disable parallel FFmpeg execution. Useful for debugging or low-resource systems. |
-| **--debug** | Show debug overlay during tracking. No cropping performed, but crop region shown. |
-| **-p:<name>=<value>** | Set custom parameters for the object detector. Example: `-p:confidence=0.5`. Defaults: DropoutToleranceFrames=20, EmaFactor=0.65, CameraEasing=0.03, LostFreezeFrames=60. |
+| Parameter | Description |
+|----------|-------------|
+| --out=&lt;folder&gt; | Output folder for segments. Default: same folder as input video + "Splitter". |
+| --file=&lt;path&gt; | Input names or file masks (e.g. "videos/*.mp4"). If not specified, the first non-option argument is used as input. |
+| --mask=&lt;pattern&gt; | Output filename pattern. Default: [NAME]_seg[NN].[EXT]. Supports [NAME], [N], [NN], [NNN], [NNNN], [EXT] placeholders. |
+| --duration=&lt;value&gt; | Override target segment duration. Formats: Ns, NmMs, N. Examples: 90s, 2m30s, 45. Default (without --force): max 58s, equalized segment lengths. |
+| --force | Use fixed segment duration exactly as given. Last segment may be shorter. Default OFF. |
+| --enhance | Enable video enhancement. Output resolution x4 using RealBasicVSR_x4 model. |
+| --rotate=&lt;degrees&gt; | Rotate video by 90, 180, or 270 degrees. |
+| --rotate-auto | Auto-detect rotation using edge orientation statistics. |
+| --estimate | Print calculated segment information and exit. No splitting performed. |
+| --crop[=&lt;w:h&gt;] | Crop video to width w and height h with face tracking. Default: 607x1080. |
+| --detect=&lt;name&gt; | Object detector: face (UltraFace), body (YoloOnnx, default), none. |
+| --detect-above=&lt;0-1&gt; | Report detections only if upper bound starts below this threshold (0.0–1.0 mapped to 0..Height). |
+| --detect-id=&lt;hex&gt; | Hexadecimal ID of face/person to track across segments. Obtained via --debug overlay. |
+| --gravitate=&lt;x:y&gt; | Gravitate tracking toward normalized point (0.0–1.0). Example: 0.2:0.5. |
+| --text | Display log in plain text. |
+| --single-thread | Run in single-threaded mode. Useful for debugging or constrained systems. |
+| --debug | Show debug overlay during face tracking. |
+| -p:&lt;name&gt;=&lt;value&gt; | Set custom detector parameter. Example: -p:EmaFactor=0.65. |
+
+Tracking splitter defaults:
+
+    DropoutToleranceFrames = 20;
+    EmaFactor              = 0.65;
+    CameraEasing           = 0.03;
+    LostFreezeFrames       = 60;   
+
+Rotation detector defaults:
+
+    RotationDetectorSampleCount  = 5;
+    RotationDetectorSampleLength = 0.15; 
+    RotationDetectorFrameWidth   = 320;
+    RotationDetectorFrameHeight  = 180;
+
 
 ## FFmpeg Passthrough
 
