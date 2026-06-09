@@ -26,7 +26,7 @@ public class ObjectTracker(IObjectDetector _detector, IEmbeddingExtractor _embed
             rect.Height = Math.Clamp(rect.Height, 1, frameMat.Height - rect.Y);
 
             var embedding = _embeddingExtractor.Extract(frameMat, rect).ToArray(); // make a copy of the embedding array
-            p.Id = _identityCache.ResolveId(embedding);
+            p.Id = _identityCache.ResolveId(embedding, job.Job.IdentityThreshold);
 
             objects[i] = p;
         }

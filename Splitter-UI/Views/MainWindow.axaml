@@ -47,6 +47,10 @@
 
         </Grid>
 
+        <Grid ColumnDefinitions="*"
+              IsVisible="{Binding TransformMode}">
+            <views:ProgressView DataContext="{Binding Progress}"/>
+        </Grid>
 
     </DockPanel>
 </Window>

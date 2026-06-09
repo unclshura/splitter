@@ -49,6 +49,10 @@ public class SingleJob
     /// </summary>
     public float                      ScoreThreshold         { get; set; } = 0.25f;
     /// <summary>
+    /// Identity matching confidence threshold. This is a value between 0.0 and 1.0 that sets the minimum confidence
+    /// </summary>
+    public float                      IdentityThreshold      { get; set; } = 0.25f;
+    /// <summary>
     /// Face or human detectors should only report detections if their upper bound starts below this threshold. 
     /// This is a value between 0.0 and 1.0 mapped to 0..Height.
     /// </summary>
@@ -144,6 +148,7 @@ public class SingleJob
         target.Debug                  = Debug;
         target.Detect                 = Detect;
         target.ScoreThreshold         = ScoreThreshold;
+        target.IdentityThreshold      = IdentityThreshold;
         target.DetectAbove            = DetectAbove;
         target.DetectId               = DetectId;
         target.OverrideTargetDuration = OverrideTargetDuration;

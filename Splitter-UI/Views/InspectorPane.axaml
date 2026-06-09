@@ -12,7 +12,7 @@ x:DataType="vm:InspectorPaneViewModel">
                 <StackPanel Orientation="Horizontal"
                             HorizontalAlignment="Right"
                             Spacing="8"
-                            Margin="0,10,0,0">
+                            Margin="0,0,10,0">
 
                     <Button Content="Apply to Selected"
                             Command="{Binding ApplyOverridesCommand}"/>
@@ -103,7 +103,7 @@ x:DataType="vm:InspectorPaneViewModel">
 
                 <!-- ScoreThreshold -->
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="Score Threshold" Width="120"/>
+                    <TextBlock Text="Score threshold" Width="120"/>
 
                     <StackPanel Orientation="Vertical" Spacing="4" Width="260">
                         <Slider Minimum="0"
@@ -115,6 +115,25 @@ x:DataType="vm:InspectorPaneViewModel">
                                 Value="{Binding Selected.ScoreThreshold, Mode=TwoWay}"/>
 
                         <TextBlock Text="{Binding Selected.ScoreThreshold, StringFormat='0.00'}"
+                                   FontSize="10"
+                                   HorizontalAlignment="Right"/>
+                    </StackPanel>
+                </StackPanel>
+                
+                <!-- ScoreThreshold -->
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="Identity matching threshold" Width="120"/>
+
+                    <StackPanel Orientation="Vertical" Spacing="4" Width="260">
+                        <Slider Minimum="0"
+                                Maximum="1"
+                                SmallChange="0.01"
+                                LargeChange="0.1"
+                                TickFrequency="0.05"
+                                IsSnapToTickEnabled="False"
+                                Value="{Binding Selected.IdentityThreshold, Mode=TwoWay}"/>
+
+                        <TextBlock Text="{Binding Selected.IdentityThreshold, StringFormat='0.00'}"
                                    FontSize="10"
                                    HorizontalAlignment="Right"/>
                     </StackPanel>

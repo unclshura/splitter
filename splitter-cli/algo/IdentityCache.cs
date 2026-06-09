@@ -9,17 +9,16 @@ public sealed class IdentityCache
     private sealed class Identity
     {
         public ulong Id;
-        public float[] Embedding; // EMA
+        public float[] Embedding = null!; // EMA
         public int Samples;
     }
 
     private readonly List<Identity> _ids = new();
     private ulong _nextId = 1;
 
-    private const float Threshold = 0.35f; // good for OSNet
-    private const float EmaAlpha = 0.2f;
+    private const float _emaAlpha = 0.2f;
 
-    public ulong ResolveId(float[] embedding)
+    public ulong ResolveId(float[] embedding, float threshold)
     {
         if (_ids.Count == 0)
             return CreateNew(embedding);
@@ -37,7 +36,7 @@ public sealed class IdentityCache
             }
         }
 
-        if (bestDist <= Threshold)
+        if (bestDist <= threshold)
         {
             UpdateEma(_ids[bestIndex].Embedding, embedding);
             _ids[bestIndex].Samples++;
@@ -73,6 +72,6 @@ public sealed class IdentityCache
     private static void UpdateEma(float[] ema, float[] v)
     {
         for (int i = 0; i < ema.Length; i++)
-            ema[i] = ema[i] * (1 - EmaAlpha) + v[i] * EmaAlpha;
+            ema[i] = ema[i] * (1 - _emaAlpha) + v[i] * _emaAlpha;
     }
 }

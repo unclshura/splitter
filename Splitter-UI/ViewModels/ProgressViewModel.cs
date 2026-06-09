@@ -1,4 +1,5 @@
 ﻿using System.Collections.ObjectModel;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -26,7 +27,7 @@ public partial class ProgressViewModel : ObservableObject
         _mainModel = mainModel;
     }
 
-    public void ClearProgress(string name, int progressLine)
+    public void ClearProgress(string name, int progressLine) => Dispatch(() =>
     {
         lock (_lock)
         {
@@ -36,8 +37,9 @@ public partial class ProgressViewModel : ObservableObject
             NumberOfProcesses -= 1;
             Processes[progressLine] = new ProgressInfo("", progressLine, 0, TimeSpan.Zero, 0);
         }
-    }
-    public void DrawProgress(string name, int progressLine, double progress, TimeSpan eta, double speed)
+    });
+
+    public void DrawProgress(string name, int progressLine, double progress, TimeSpan eta, double speed) => Dispatch(() =>
     {
         lock (_lock)
         {
@@ -52,6 +54,18 @@ public partial class ProgressViewModel : ObservableObject
             if (Processes[progressLine].Name == "")
                 NumberOfProcesses += 1;
             Processes[progressLine] = new ProgressInfo(name, progressLine, progress, eta, speed);
+        }
+    });
+
+    private void Dispatch(Action action)
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            action();
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(() => action());
         }
     }
 }

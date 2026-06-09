@@ -122,6 +122,19 @@ public partial class JobViewModel : ObservableObject
         }
     }
 
+    public float IdentityThreshold
+    {
+        get => Job.IdentityThreshold;
+        set
+        {
+            if (Math.Abs(Job.IdentityThreshold - value) < 0.001)
+                return;
+            Job.IdentityThreshold = value;
+            OnPropertyChanged();
+            Task.Run(CreatePreview);
+        }
+    }
+
     public string? Mask
     {
         get => Job.Mask;

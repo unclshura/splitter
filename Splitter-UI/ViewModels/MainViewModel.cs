@@ -54,14 +54,14 @@ public partial class MainViewModel : ViewModelBase
         _cancellationTokenSource?.Cancel();
     }
 
-    public async Task Start()
+    public Task Start() => Task.Run(async () =>
     {
         _cancellationTokenSource = new CancellationTokenSource();
         try
         {
             StatusBar.StatusText = "Processing…";
-            StatusBar.Percent    = 0;
-            TransformMode        = true;
+            StatusBar.Percent = 0;
+            TransformMode = true;
 
             var files = FileList.Files.ToList();
             var jobs = new List<SingleTask>();
@@ -84,11 +84,11 @@ public partial class MainViewModel : ViewModelBase
         finally
         {
             StatusBar.StatusText = "Ready…";
-            StatusBar.Percent    = 0;
-            TransformMode        = false;
+            StatusBar.Percent = 0;
+            TransformMode = false;
 
             _cancellationTokenSource?.Dispose();
         }
-    }
+    });
 
 }
