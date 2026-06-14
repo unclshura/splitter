@@ -3,6 +3,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:vm="clr-namespace:Splitter_UI.ViewModels"
     xmlns:local="clr-namespace:Splitter_UI.Views"
+    xmlns:controls="clr-namespace:Splitter_UI.Controls"
     x:Class="Splitter_UI.Views.PreviewPane"
     x:DataType="vm:PreviewPaneViewModel">
 
@@ -35,12 +36,19 @@
                                VerticalAlignment="Center"
                                HorizontalAlignment="Center" />
                 </Button>
-
+<!--
                 <Slider Grid.Column="1"
-                        Minimum="0"
-                        Maximum="{Binding Selected.DurationSeconds}"
-                        Value="{Binding Selected.SliderLiveValue, Mode=TwoWay}"
-                        Margin="5,0,5,0" />
+                    Minimum="0"
+                    Maximum="{Binding Selected.DurationSeconds}"
+                    Value="{Binding Selected.SliderLiveValue, Mode=TwoWay}"
+                    Margin="5,0,5,0" />
+-->
+                <controls:PreviewSlider Grid.Column="1"
+                    Minimum="0"
+                    Maximum="{Binding Selected.DurationSeconds}"
+                    Value="{Binding Selected.SliderLiveValue, Mode=TwoWay}"
+                    SegmentDuration="{Binding Selected.SegmentDuration}"
+                    Margin="5,0,5,0" />
 
                 <Button Grid.Column="2"
                         HorizontalAlignment="Right"

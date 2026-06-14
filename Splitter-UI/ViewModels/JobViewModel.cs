@@ -22,6 +22,34 @@ public partial class JobViewModel : ObservableObject
 
     public string InputFile       => Job.InputFile;
     public double DurationSeconds => Probe?.Duration ?? 0;
+    public double SegmentDuration
+    {
+        get
+        {
+            if (Probe == null || Probe.Duration <= 0)
+                return 58.0;
+
+            var target = Job.OverrideTargetDuration ?? 58.0;
+
+            int segments;
+            double segmentLength;
+
+            if (Job.ForceFixed)
+            {
+                // Fixed chunk size, last one may be shorter
+                segments = (int)Math.Ceiling(Probe.Duration / target);
+                segmentLength = target;
+            }
+            else
+            {
+                // Equalized segments
+                segments = (int)Math.Ceiling(Probe.Duration / target);
+                segmentLength = Probe.Duration / segments;
+            }
+
+            return segmentLength;
+        }
+    }
 
     public IRelayCommand StepForwardCommand  { get; }
     public IRelayCommand StepBackwardCommand { get; }
@@ -354,6 +382,7 @@ public partial class JobViewModel : ObservableObject
             crop = ClampCrop(r, w, h);
 
             Preview = new PreviewData(frame, detections ?? [], crop, Job.GravitateTo, pos, Job.Rotate);
+            OnPropertyChanged(nameof(SegmentDuration));
         }
         catch (Exception ex)
         {
@@ -415,9 +444,10 @@ public partial class JobViewModel : ObservableObject
         if (DurationSeconds <= 0)
             return;
 
-        var step = DurationSeconds * 0.1; // 10% of total duration
+        var duration = SegmentDuration;
+        var segment = Math.Round(SliderLiveValue / duration, MidpointRounding.ToZero)+1;
 
-        SliderLiveValue = Math.Min(DurationSeconds, SliderLiveValue + step);
+        SliderLiveValue = Math.Min(DurationSeconds - duration, segment * duration);
         // trigger seek in your playback pipeline here
     }
 
@@ -426,9 +456,10 @@ public partial class JobViewModel : ObservableObject
         if (DurationSeconds <= 0)
             return;
 
-        var step = DurationSeconds * 0.1; // 10% of total duration
+        var duration = SegmentDuration;
+        var segment = Math.Max(0, Math.Round(SliderLiveValue / duration, MidpointRounding.ToZero)-1);
 
-        SliderLiveValue = Math.Max(0, SliderLiveValue - step);
+        SliderLiveValue = segment * duration;
         // trigger seek in your playback pipeline here
     }
 
