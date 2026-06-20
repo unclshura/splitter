@@ -1,5 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
@@ -68,14 +69,15 @@ public class TimelinePreviewSlider : Control, IDisposable
     private readonly object _cacheLock = new();
 
     private IDisposable?  _segmentsSubscription;
+    private bool          _isInternalSliderUpdate;
+    private JobViewModel? _currentVm;
 
     // Interaction state
-    private bool     _isPointerCaptured;
-    private Point    _lastPointerPoint;
-    private double   _lastPointerXForDrag; // used to compute delta for segment drag
-    private DragMode _dragMode = DragMode.None;
-    private int      _activeSegmentIndex = -1;
-    private bool     _isSplitModifierActive;
+    private bool         _isPointerCaptured;
+    private Point        _lastPointerPoint;
+    private DragMode     _dragMode           = DragMode.None;
+    private int          _activeSegmentIndex = -1;
+    private bool         _isSplitModifierActive;
 
     // Throttle invalidation during drag
     private DateTime _lastInvalidate = DateTime.MinValue;
@@ -83,17 +85,17 @@ public class TimelinePreviewSlider : Control, IDisposable
 
     public TimelinePreviewSlider()
     {
-        Focusable = true;
-        Height = _timelineHeight;
+        Focusable    = true;
+        Height       = _timelineHeight;
         ClipToBounds = true;
 
         // Use property change override instead of GetObservable.Subscribe to avoid IObserver compile issues.
-        PointerPressed += OnPointerPressed;
-        PointerMoved += OnPointerMoved;
-        PointerReleased += OnPointerReleased;
+        PointerPressed     += OnPointerPressed;
+        PointerMoved       += OnPointerMoved;
+        PointerReleased    += OnPointerReleased;
         PointerCaptureLost += OnPointerCaptureLost;
-        KeyDown += OnKeyDown;
-        KeyUp += OnKeyUp;
+        KeyDown            += OnKeyDown;
+        KeyUp              += OnKeyUp;
     }
 
     // Override to detect ViewModel property changes
@@ -116,9 +118,22 @@ public class TimelinePreviewSlider : Control, IDisposable
         if (vm != null)
         {
             _segmentsSubscription = SubscribeToSegments(vm.Segments);
+            vm.PropertyChanged += OnVmPropertyChanged;
         }
 
         InvalidateVisual();
+    }
+
+
+    private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(JobViewModel.SliderLiveValue))
+        {
+            if (_isInternalSliderUpdate)
+                return;
+
+            InvalidateVisual();
+        }
     }
 
     private IDisposable SubscribeToSegments(ObservableCollection<Segment> segments)
@@ -135,6 +150,11 @@ public class TimelinePreviewSlider : Control, IDisposable
 
     private void UnsubscribeFromViewModel()
     {
+        if (_currentVm != null)
+            _currentVm.PropertyChanged -= OnVmPropertyChanged;
+
+        _currentVm = null;
+
         _segmentsSubscription?.Dispose();
         _segmentsSubscription = null;
     }
@@ -519,7 +539,6 @@ public class TimelinePreviewSlider : Control, IDisposable
 
         var p = e.GetPosition(this);
         _lastPointerPoint = p;
-        _lastPointerXForDrag = p.X;
         _isSplitModifierActive = e.KeyModifiers.HasFlag(KeyModifiers.Control);
 
         var hit = HitTestAtPoint(p);
@@ -576,7 +595,9 @@ public class TimelinePreviewSlider : Control, IDisposable
                 break;
         }
 
+        _isInternalSliderUpdate = true;
         vm.SliderLiveValue = sec;
+        _isInternalSliderUpdate = false;
 
         ThrottledInvalidate();
         _lastPointerPoint = p;
@@ -665,7 +686,6 @@ public class TimelinePreviewSlider : Control, IDisposable
         _dragMode = mode;
         _activeSegmentIndex = segmentIndex;
         _lastPointerPoint = e.GetPosition(this);
-        _lastPointerXForDrag = _lastPointerPoint.X;
     }
 
     private void ThrottledInvalidate()
@@ -681,10 +701,16 @@ public class TimelinePreviewSlider : Control, IDisposable
     private void SetPlayheadFromPoint(Point p)
     {
         var vm = ViewModel;
-        if (vm == null) return;
-        var sec = PixelToSeconds(p.X);
+        if (vm == null) 
+            return;
+
+        double sec = PixelToSeconds(p.X);
         sec = Math.Max(0, Math.Min(vm.DurationSeconds, sec));
+
+        _isInternalSliderUpdate = true;
         vm.SliderLiveValue = sec;
+        _isInternalSliderUpdate = false;
+
         InvalidateVisual();
     }
 

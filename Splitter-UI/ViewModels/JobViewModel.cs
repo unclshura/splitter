@@ -462,26 +462,48 @@ public partial class JobViewModel : ObservableObject
 
     private void StepForward()
     {
-        if (DurationSeconds <= 0)
+        if (Segments.Count <= 1)
             return;
 
-        var duration = SegmentDuration;
-        var segment = Math.Round(SliderLiveValue / duration, MidpointRounding.ToZero)+1;
+        var current = GetCurrentSegment();
+        if ( current < 0 || current >= Segments.Count - 1 )
+            return;
 
-        SliderLiveValue = Math.Min(DurationSeconds - duration, segment * duration);
-        // trigger seek in your playback pipeline here
+        SliderLiveValue = Segments[current + 1].Start;
     }
 
     private void StepBackward()
     {
-        if (DurationSeconds <= 0)
+        if (Segments.Count <= 0)
             return;
 
-        var duration = SegmentDuration;
-        var segment = Math.Max(0, Math.Round(SliderLiveValue / duration, MidpointRounding.ToZero)-1);
+        var current = GetCurrentSegment();
+        if (current <= 0)
+        {
+            SliderLiveValue = 0;
+            return;
+        }
 
-        SliderLiveValue = segment * duration;
-        // trigger seek in your playback pipeline here
+        if (SliderLiveValue > Segments[current].Start)
+            SliderLiveValue = Segments[current].Start;
+        else
+            SliderLiveValue = Segments[current - 1].Start;
+    }
+
+    private int GetCurrentSegment()
+    {
+        double pos = SliderLiveValue;
+
+        for (int i = 0; i < Segments.Count; i++)
+        {
+            var s = Segments[i];
+            if (pos < s.Start)
+                return i - 1;
+            if (pos == s.Start)
+                return i;
+        }
+
+        return -1;
     }
 
     partial void OnSliderLiveValueChanged(double value)
