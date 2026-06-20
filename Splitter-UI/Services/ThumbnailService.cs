@@ -7,11 +7,11 @@ namespace Splitter_UI.Services;
 
 public sealed class ThumbnailService : IThumbnailService
 {
-    private const int _thumbWidth  = 160;
-    private const int _thumbHeight = 90;
+    public const int ThumbWidth  = 160;
+    public const int ThumbHeight = 90;
 
-    private readonly byte [] _bgrBuffer  = new byte[_thumbWidth * _thumbHeight * 3];
-    private readonly byte [] _bgraBuffer = new byte[_thumbWidth * _thumbHeight * 4];
+    private readonly byte [] _bgrBuffer  = new byte[ThumbWidth * ThumbHeight * 3];
+    private readonly byte [] _bgraBuffer = new byte[ThumbWidth * ThumbHeight * 4];
 
     public SemaphoreSlim _lock = new(1,1);
 
@@ -49,15 +49,15 @@ public sealed class ThumbnailService : IThumbnailService
         int? height = null,
         int? rotateDegree = null)
     {
-        width  ??= _thumbWidth;
-        height ??= _thumbHeight;
+        width  ??= ThumbWidth;
+        height ??= ThumbHeight;
         skip   ??= TimeSpan.Zero;
 
         // buffer for BGR24 → 3 bytes per pixel
 
         var canUseStaticBuffers =
-            width.Value == _thumbWidth &&
-            height.Value == _thumbHeight;
+            width.Value == ThumbWidth &&
+            height.Value == ThumbHeight;
 
         var bgrBuffer  = canUseStaticBuffers ? _bgrBuffer  : new byte[width.Value * height.Value * 3];
         var bgraBuffer = canUseStaticBuffers ? _bgraBuffer : new byte[width.Value * height.Value * 4];

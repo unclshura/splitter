@@ -8,6 +8,8 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Splitter_UI.ViewModels;
 
+public record Segment(double Start, double End);
+
 public partial class JobViewModel : ObservableObject
 {
     private SingleJob Job { get; }
@@ -69,6 +71,8 @@ public partial class JobViewModel : ObservableObject
 
     public ObservableCollection<ParameterEntry> ParametersList { get; }
         = new();
+
+    public ObservableCollection<Segment> Segments { get; } = new();
 
     public string CropText
     {
@@ -311,6 +315,8 @@ public partial class JobViewModel : ObservableObject
         {
             if (e.PropertyName == nameof(Probe))
             {
+                if (Segments.Count == 0)
+                    GenerateSegments();
                 OnPropertyChanged(nameof(DurationSeconds));
             }
         };
@@ -324,6 +330,21 @@ public partial class JobViewModel : ObservableObject
             Interval = TimeSpan.FromSeconds(1)
         };
         _debounceTimer.Tick += DebounceTimerTick;
+    }
+
+    public void GenerateSegments()
+    {
+        Segments.Clear();
+        if (Probe == null || Probe.Duration <= 0)
+            return;
+        var duration = SegmentDuration;
+        var segments = (int)Math.Ceiling(Probe.Duration / duration);
+        for (int i = 0; i < segments; i++)
+        {
+            var start = i * duration;
+            var end   = Math.Min(start + duration, Probe.Duration);
+            Segments.Add(new Segment(start, end));
+        }
     }
 
     public void CopyFrom(JobViewModel src)
@@ -481,6 +502,17 @@ public partial class JobViewModel : ObservableObject
     partial void OnPositionSecondsChanged(double value)
     {
         Task.Run(CreatePreview);
+    }
+
+    public async Task<Avalonia.Media.Imaging.Bitmap?> GetThumbnail(double positionSec)
+    {
+        if (Probe == null)
+            return null;
+
+        var pos = TimeSpan.FromSeconds(positionSec);
+        var frame = await _thumbnails.CreateThumbnailAsync(Job.InputFile, Probe, pos, ThumbnailService.ThumbWidth, ThumbnailService.ThumbHeight, Job.Rotate).ConfigureAwait(false);
+        //frame.Save($"c:\\temp\\thmb-{positionSec:N4}.png");
+        return frame;
     }
 
 }
