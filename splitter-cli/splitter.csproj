@@ -59,10 +59,10 @@
   <ItemGroup>
     <PackageReference Include="FFmpeg.AutoGen" Version="8.1.0" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.24.4" />
-    <PackageReference Include="Onnxify" Version="0.1.4" />
+    <PackageReference Include="Onnxify" Version="0.3.4" />
     <PackageReference Include="OpenCvSharp4" Version="4.13.0.20260602" />
     <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.13.0.20260602" />
-    <PackageReference Include="Spectre.Console" Version="0.56.0" />
+    <PackageReference Include="Spectre.Console" Version="0.57.0" />
     <PackageReference Include="UltraFaceDotNet" Version="1.0.0.2" />
   </ItemGroup>
 

@@ -12,10 +12,7 @@ internal sealed class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        var services = ConfigureServices();
-        var provider = services.BuildServiceProvider();
-
-        BuildAvaloniaApp(provider)
+        BuildAvaloniaApp()
             .StartWithClassicDesktopLifetime(args);
     }
 
@@ -64,20 +61,25 @@ internal sealed class Program
     }
 
     // Avalonia configuration, don't remove; also used by visual designer.
-    public static AppBuilder BuildAvaloniaApp(ServiceProvider provider)
-        => AppBuilder.Configure<App>(() => new App(provider))
-            .UsePlatformDetect()
-            .With(new FontManagerOptions
-            {
-                FontFallbacks = new[]
+    public static AppBuilder BuildAvaloniaApp()
+    {
+        var services = ConfigureServices();
+        var provider = services.BuildServiceProvider();
+
+        return AppBuilder.Configure<App>(() => new App(provider))
+                .UsePlatformDetect()
+                .With(new FontManagerOptions
                 {
+                    FontFallbacks = new[]
+                    {
                     new FontFallback { FontFamily = new FontFamily("Font Awesome 7 Free") },
                     new FontFallback { FontFamily = new FontFamily("Font Awesome 7 Free Solid") }
-                }
-            })
+                    }
+                })
 #if DEBUG
-            .WithDeveloperTools()
+                .WithDeveloperTools()
 #endif
-            .WithInterFont()
-            .LogToTrace();
+                .WithInterFont()
+                .LogToTrace();
+    }
 }
