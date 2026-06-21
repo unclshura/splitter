@@ -1,7 +1,5 @@
 ﻿using System.Diagnostics;
-using Avalonia;
 using Avalonia.Media.Imaging;
-using Avalonia.Platform;
 
 namespace Splitter_UI.Services;
 
@@ -10,17 +8,25 @@ public sealed class ThumbnailService : IThumbnailService
     public const int ThumbWidth  = 160;
     public const int ThumbHeight = 90;
 
-    private readonly byte [] _bgrBuffer  = new byte[ThumbWidth * ThumbHeight * 3];
-    private readonly byte [] _bgraBuffer = new byte[ThumbWidth * ThumbHeight * 4];
+    private readonly IMatToBitmapConverter _converter;
+    private readonly IBufferPool _pool;
 
-    public SemaphoreSlim _lock = new(1,1);
+    private SemaphoreSlim _lock = new(1,1);
+
+    public ThumbnailService(
+        IMatToBitmapConverter converter,
+        IBufferPool pool)
+    {
+        _converter = converter;
+        _pool = pool;
+    }
 
     public async Task<Bitmap?> CreateThumbnailAsync(
         string file,
         VideoInfo probe,
-        TimeSpan? skip    = null,
-        int? width        = null,
-        int? height       = null,
+        TimeSpan? skip = null,
+        int? width = null,
+        int? height = null,
         int? rotateDegree = null)
     {
         await _lock.WaitAsync();
@@ -33,7 +39,7 @@ public sealed class ThumbnailService : IThumbnailService
                 width,
                 height,
                 rotateDegree
-                );
+            );
         }
         finally
         {
@@ -49,36 +55,37 @@ public sealed class ThumbnailService : IThumbnailService
         int? height = null,
         int? rotateDegree = null)
     {
-        width  ??= ThumbWidth;
+        width ??= ThumbWidth;
         height ??= ThumbHeight;
-        skip   ??= TimeSpan.Zero;
+        skip ??= TimeSpan.Zero;
 
-        // buffer for BGR24 → 3 bytes per pixel
+        var entry = _pool.Get(width.Value, height.Value);
 
-        var canUseStaticBuffers =
-            width.Value == ThumbWidth &&
-            height.Value == ThumbHeight;
+        var ok = await DecodeFrameAsync(
+            entry.Bgr,
+            file,
+            skip.Value,
+            width.Value,
+            height.Value,
+            rotateDegree
+        );
 
-        var bgrBuffer  = canUseStaticBuffers ? _bgrBuffer  : new byte[width.Value * height.Value * 3];
-        var bgraBuffer = canUseStaticBuffers ? _bgraBuffer : new byte[width.Value * height.Value * 4];
-
-        // Decode a single frame using ffmpeg → raw BGR24 into _bgrBuffer
-        var ok = await DecodeFrameAsync(bgrBuffer, file, skip.Value, width.Value, height.Value, rotateDegree);
         if (!ok)
             return null;
 
-        // Convert BGR24 → BGRA32
-        ConvertBgrToBgra(bgrBuffer, bgraBuffer, width.Value, height.Value);
-
-        // Create Avalonia Bitmap
-        return CreateBitmap(bgraBuffer, width.Value, height.Value, rotateDegree == 90 || rotateDegree == 270);
+        return _converter.Convert(entry.Bgr, width.Value, height.Value);
     }
 
-    private static async Task<bool> DecodeFrameAsync(byte [] bgrBuffer, string file, TimeSpan skip, int width, int height, int? rotateDegree)
+    private static async Task<bool> DecodeFrameAsync(
+        byte[] bgrBuffer,
+        string file,
+        TimeSpan skip,
+        int width,
+        int height,
+        int? rotateDegree)
     {
         var rotationStr = TrackingSplitter.GetRorationArg(rotateDegree);
 
-        // ffmpeg command: decode one frame, resize, output raw BGR24
         var args =
             $"-ss {skip.TotalSeconds} -t 0.1 -i \"{file}\" " +
             "-an -sn " +
@@ -123,45 +130,4 @@ public sealed class ThumbnailService : IThumbnailService
     {
         try { p.Kill(); } catch { }
     }
-
-    private static void ConvertBgrToBgra(byte[] bgr, byte[] bgra, int width, int height)
-    {
-        var si = 0;
-        var di = 0;
-
-        var totalPixels = width * height;
-
-        for (var i = 0; i < totalPixels; i++)
-        {
-            bgra[di + 0] = bgr[si + 0]; // B
-            bgra[di + 1] = bgr[si + 1]; // G
-            bgra[di + 2] = bgr[si + 2]; // R
-            bgra[di + 3] = 255;         // A
-
-            si += 3;
-            di += 4;
-        }
-    }
-
-    private static unsafe Bitmap CreateBitmap(byte[] bgra, int width, int height, bool isRotated)
-    {
-        if (isRotated)
-        {
-            (height, width) = (width, height);
-        }
-
-        var stride = width * 4;
-
-        fixed (byte* p = bgra)
-        {
-            return new Bitmap(
-                PixelFormat.Bgra8888,
-                AlphaFormat.Premul,
-                (nint)p,
-                new PixelSize(width, height),
-                new Vector(96, 96),
-                stride);
-        }
-    }
-
 }

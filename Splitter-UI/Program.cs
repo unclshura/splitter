@@ -36,6 +36,8 @@ internal sealed class Program
         services.AddSingleton<YoloV10ObjectDetector>();
         services.AddSingleton<OSNetEmbeddingExtractor>();
         services.AddSingleton<IObjectTracker, ObjectTracker>();
+        services.AddSingleton<IBufferPool, BufferPool>();
+        services.AddSingleton<IMatToBitmapConverter, MatToBitmapConverter>();
         services.AddKeyedSingleton<IObjectDetector>("face", (x,_) => new SingleThreadedDetector<UltraFaceDetector>(x.GetRequiredService<UltraFaceDetector>()));
         services.AddKeyedSingleton<IObjectDetector>("body", (x,_) => new SingleThreadedDetector<YoloV10ObjectDetector>(x.GetRequiredService<YoloV10ObjectDetector>()));
         services.AddKeyedSingleton<IObjectDetector>("none", (x,_) => new SingleThreadedDetector<DummyDetector>(x.GetRequiredService<DummyDetector>()));

@@ -53,6 +53,7 @@ public partial class JobViewModel : ObservableObject
 
     public IRelayCommand StepForwardCommand  { get; }
     public IRelayCommand StepBackwardCommand { get; }
+    public IRelayCommand PlayPreviewCommand  { get; }
 
     private readonly IThumbnailService             _thumbnails;
     private readonly DispatcherTimer               _debounceTimer;
@@ -322,6 +323,7 @@ public partial class JobViewModel : ObservableObject
 
         StepForwardCommand  = new RelayCommand(StepForward);
         StepBackwardCommand = new RelayCommand(StepBackward);
+        PlayPreviewCommand  = new RelayCommand(PlayPreview);
 
         _debounceTimer = new DispatcherTimer
         {
@@ -486,6 +488,11 @@ public partial class JobViewModel : ObservableObject
             SliderLiveValue = Segments[current].Start;
         else
             SliderLiveValue = Segments[current - 1].Start;
+    }
+
+    private void PlayPreview()
+    {
+        // Implementation for playing preview
     }
 
     private int GetCurrentSegment()
