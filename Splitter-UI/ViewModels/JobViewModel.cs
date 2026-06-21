@@ -10,7 +10,8 @@ namespace Splitter_UI.ViewModels;
 
 public partial class JobViewModel : ObservableObject
 {
-    private SingleJob Job { get; }
+    private SingleJob Job => _f.Model;
+    private ViewModelForwarder<SingleJob> _f;
 
     public SingleJob GetJob() => Job;
 
@@ -128,115 +129,6 @@ public partial class JobViewModel : ObservableObject
         }
     }
 
-    public string? Detect
-    {
-        get => Job.Detect;
-        set
-        {
-            if (Job.Detect == value)
-                return;
-            Job.Detect = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public float ScoreThreshold
-    {
-        get => Job.ScoreThreshold;
-        set
-        {
-            if (Math.Abs(Job.ScoreThreshold - value) < 0.001)
-                return;
-            Job.ScoreThreshold = value;
-            OnPropertyChanged();
-            Task.Run(CreatePreview);
-        }
-    }
-
-    public float IdentityThreshold
-    {
-        get => Job.IdentityThreshold;
-        set
-        {
-            if (Math.Abs(Job.IdentityThreshold - value) < 0.001)
-                return;
-            Job.IdentityThreshold = value;
-            OnPropertyChanged();
-            Task.Run(CreatePreview);
-        }
-    }
-
-    public string? Mask
-    {
-        get => Job.Mask;
-        set
-        {
-            if (Job.Mask == value)
-                return;
-            Job.Mask = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public string OutputFolder
-    {
-        get => Job.OutputFolder;
-        set
-        {
-            if (Job.OutputFolder == value)
-                return;
-            Job.OutputFolder = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public bool ForceFixed
-    {
-        get => Job.ForceFixed;
-        set
-        {
-            if (Job.ForceFixed == value)
-                return;
-            Job.ForceFixed = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public bool Debug
-    {
-        get => Job.Debug;
-        set
-        {
-            if (Job.Debug == value)
-                return;
-            Job.Debug = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public bool Enhance
-    {
-        get => Job.Enhance;
-        set
-        {
-            if (Job.Enhance == value)
-                return;
-            Job.Enhance = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public int? Rotate
-    {
-        get => Job.Rotate;
-        set
-        {
-            Job.Rotate = value;
-            OnPropertyChanged();
-            Task.Run(CreatePreview);
-        }
-    }
-
     public Point2f GravitateTo
     {
         get => Job.GravitateTo;
@@ -251,49 +143,24 @@ public partial class JobViewModel : ObservableObject
         }
     }
 
-    public float DetectAbove
-    {
-        get => Job.DetectAbove;
-        set
-        {
-            if (Math.Abs(Job.DetectAbove - value) < 0.001 )
-                return;
-            Job.DetectAbove = value;
-            OnPropertyChanged();
-            Task.Run(CreatePreview);
-        }
-    }
-
-    public ulong? DetectId
-    {
-        get => Job.DetectId;
-        set
-        {
-            if (DetectId == value)
-                return;
-            Job.DetectId = value;
-            OnPropertyChanged();
-            Task.Run(CreatePreview);
-        }
-    }
-
-    public double? OverrideTargetDuration
-    {
-        get => Job.OverrideTargetDuration;
-        set
-        {
-            if (Job.OverrideTargetDuration != null && value != null && Math.Abs(Job.OverrideTargetDuration.Value - value.Value) < 0.01)
-                return;
-            Job.OverrideTargetDuration = value;
-            OnPropertyChanged();
-        }
-    }
+    public string? Detect                 { get => Job.Detect;                 set => _f.Forward(value); }
+    public string? Mask                   { get => Job.Mask;                   set => _f.Forward(value); }
+    public string OutputFolder            { get => Job.OutputFolder;           set => _f.Forward(value); }
+    public bool ForceFixed                { get => Job.ForceFixed;             set => _f.Forward(value); }
+    public bool Debug                     { get => Job.Debug;                  set => _f.Forward(value); }
+    public bool Enhance                   { get => Job.Enhance;                set => _f.Forward(value); }
+    public double? OverrideTargetDuration { get => Job.OverrideTargetDuration; set => _f.Forward(value); }
+    public float ScoreThreshold           { get => Job.ScoreThreshold;         set { _f.Forward(value); Task.Run(CreatePreview); } }
+    public float IdentityThreshold        { get => Job.IdentityThreshold;      set { _f.Forward(value); Task.Run(CreatePreview); } }
+    public int? Rotate                    { get => Job.Rotate;                 set { _f.Forward(value); Task.Run(CreatePreview); } }
+    public float DetectAbove              { get => Job.DetectAbove;            set { _f.Forward(value); Task.Run(CreatePreview); } }
+    public ulong? DetectId                { get => Job.DetectId;               set { _f.Forward(value); Task.Run(CreatePreview); } }
 
     public JobViewModel(SingleJob job, IThumbnailService thumbnails, Func<string, IObjectTracker> trackerFactory, ILogger log)
     {
-        Job              = job;
+        _f               = new ViewModelForwarder<SingleJob>(job, this.OnPropertyChanged);
         _thumbnails      = thumbnails;
-        _trackerFactory = trackerFactory;
+        _trackerFactory  = trackerFactory;
         _log             = log;
 
         ParametersList.Add(new ParameterEntry("DropoutToleranceFrames"      , ""));

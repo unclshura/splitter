@@ -34,6 +34,7 @@ internal sealed class Program
         // splitter services
         services.AddSingleton<UltraFaceDetector>();
         services.AddSingleton<YoloV10ObjectDetector>();
+        services.AddSingleton<DummyDetector>();
         services.AddSingleton<OSNetEmbeddingExtractor>();
         services.AddSingleton<IObjectTracker, ObjectTracker>();
         services.AddSingleton<IBufferPool, BufferPool>();
