@@ -78,8 +78,8 @@ public sealed class PreviewCanvas : Control
 
     public PreviewCanvas()
     {
-        PointerPressed += OnPointerPressed;
-        PointerMoved += OnPointerMoved;
+        PointerPressed  += OnPointerPressed;
+        PointerMoved    += OnPointerMoved;
         PointerReleased += OnPointerReleased;
     }
 

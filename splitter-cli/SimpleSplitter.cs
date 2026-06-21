@@ -3,9 +3,189 @@ using System.Globalization;
 
 namespace splitter;
 
-public class SimpleSplitter(int segmentNo, ILogger logger) : LoggingBase(logger, segmentNo), ISegmentProcessor
+public sealed class SimpleSplitter : LoggingBase, ISegmentProcessor
 {
+    // ------------------------------------------------------------
+    // Internal state (opaque to caller)
+    // ------------------------------------------------------------
+
+    private sealed class State : IFrameProcessingState
+    {
+        public Process? DecodeProcess { get; set; }
+        public Stream? DecodeStdout   { get; set; }
+
+        public string InputFile       { get; }
+        public double Start           { get; }
+        public double Length          { get; }
+        public int? Rotate            { get; }
+        public string[] Passthrough   { get; }
+        public VideoInfo Info         { get; }
+        public bool PlainText         { get; }
+
+        public State(SingleTask job)
+        {
+            InputFile   = job.Job.InputFile;
+            Start       = job.SegmentStart;
+            Length      = job.SegmentLength;
+            Rotate      = job.Job.Rotate;
+            Passthrough = job.Job.Passthrough;
+            Info        = job.Info;
+            PlainText   = job.Job.PlainText;
+        }
+    }
+
+    public SimpleSplitter(int segmentNo, ILogger logger)
+        : base(logger, segmentNo)
+    {
+    }
+
+    // ============================================================
+    // InitSegment
+    // ============================================================
+
+    public IFrameProcessingState InitSegment(SingleTask job, CancellationToken token)
+    {
+        var state = new State(job);
+
+        var decode          = StartDecode(job, token);
+        state.DecodeProcess = decode;
+        state.DecodeStdout  = decode.StandardOutput.BaseStream;
+
+        return state;
+    }
+
+    // ============================================================
+    // GetNextProcessedFrame
+    // ============================================================
+
+    public Mat? GetNextProcessedFrame(IFrameProcessingState processorState, CancellationToken token)
+    {
+        var state = (State)processorState;
+
+        if (state.DecodeStdout == null)
+            return null;
+
+        // SimpleSplitter does not modify frames; it only copies or rotates.
+        // For preview, we decode raw frames and return them as-is.
+
+        // Determine expected frame size
+        var w = state.Info.Width;
+        var h = state.Info.Height;
+        var bytes = w * h * 3;
+
+        var buffer = new byte[bytes];
+        var read = state.DecodeStdout.Read(buffer, 0, bytes);
+        if (read != bytes)
+            return null;
+
+        var mat = new Mat(h, w, MatType.CV_8UC3);
+        System.Runtime.InteropServices.Marshal.Copy(buffer, 0, mat.Data, bytes);
+
+        return mat;
+    }
+
+    // ============================================================
+    // FinishSegment
+    // ============================================================
+
+    public void FinishSegment(IFrameProcessingState processorState)
+    {
+        var state = (State)processorState;
+
+        try
+        {
+            if (state.DecodeProcess != null && !state.DecodeProcess.HasExited)
+                state.DecodeProcess.Kill(entireProcessTree: true);
+        }
+        catch { }
+
+        try
+        {
+            if (state.DecodeProcess != null && !state.DecodeProcess.HasExited)
+                state.DecodeProcess.WaitForExit();
+        }
+        catch { }
+    }
+
+    // ============================================================
+    // ProcessSegment (now uses preview API)
+    // ============================================================
+
     public async Task ProcessSegment(SingleTask job, CancellationToken token)
+    {
+        var state = (State)InitSegment(job, token);
+
+        var encode = StartEncode(job);
+        using var encodeStdin = encode.StandardInput.BaseStream;
+
+        var name = Path.GetFileNameWithoutExtension(job.OutputFileName);
+        var sw   = Stopwatch.StartNew();
+
+        while (true)
+        {
+            token.ThrowIfCancellationRequested();
+
+            var frame = GetNextProcessedFrame(state, token);
+            if (frame == null)
+                break;
+
+            // Write raw frame to encoder
+            var bytes = frame.Width * frame.Height * 3;
+            var buffer = new byte[bytes];
+            System.Runtime.InteropServices.Marshal.Copy(frame.Data, buffer, 0, bytes);
+            encodeStdin.Write(buffer, 0, bytes);
+
+            frame.Dispose();
+        }
+
+        encodeStdin.Flush();
+        encodeStdin.Close();
+
+        await encode.WaitForExitAsync(token);
+
+        FinishSegment(state);
+
+        ClearProgress(name);
+
+        if (encode.ExitCode != 0)
+            LogError($"Segment {name} FFmpeg encoding failed");
+        else
+            LogInfo($"Segment {name} processing completed");
+    }
+
+    // ============================================================
+    // FFmpeg helpers
+    // ============================================================
+
+    private Process StartDecode(SingleTask job, CancellationToken token)
+    {
+        var ss = job.SegmentStart.ToString("0.###", CultureInfo.InvariantCulture);
+        var t  = job.SegmentLength.ToString("0.###", CultureInfo.InvariantCulture);
+
+        var rotate = GetRotationFilter(job.Job.Rotate);
+        var vf = rotate != null ? $"-vf format=bgr24,{rotate}" : "-vf format=bgr24";
+
+        var args =
+            $"-i \"{job.Job.InputFile}\" -ss {ss} -t {t} " +
+            "-an -sn " +
+            $"{vf} " +
+            "-f rawvideo -";
+
+        var psi = new ProcessStartInfo
+        {
+            FileName               = "ffmpeg",
+            Arguments              = args,
+            RedirectStandardOutput = true,
+            RedirectStandardError  = true,
+            UseShellExecute        = false,
+            CreateNoWindow         = true
+        };
+
+        var p = Process.Start(psi) ?? throw new Exception("Failed to start ffmpeg decode.");
+        return p;
+    }
+
+    private Process StartEncode(SingleTask job)
     {
         var inputFile  = job.Job.InputFile;
         var outputFile = job.OutputFileName;
@@ -18,7 +198,6 @@ public class SimpleSplitter(int segmentNo, ILogger logger) : LoggingBase(logger,
 
         if (rotation == null)
         {
-            // Copy path: keep original SAR/DAR exactly as in source
             args =
                 $"-ss {start.ToString(CultureInfo.InvariantCulture)} " +
                 $"-i \"{inputFile}\" " +
@@ -31,33 +210,27 @@ public class SimpleSplitter(int segmentNo, ILogger logger) : LoggingBase(logger,
             var sarArg = "";
             var darArg = "";
 
-            var sar = job.Info.SampleAspectRatio; // e.g. "4:3"
+            var sar = job.Info.SampleAspectRatio;
             if (sar != null)
             {
-                // Rotation path: must re-encode and recompute DAR
-
                 var sarNum = Convert.ToInt64(job.Info.Sar.X);
                 var sarDen = Convert.ToInt64(job.Info.Sar.Y);
 
-                // After rotation, width/height swap
                 var w = job.Info.Width;
                 var h = job.Info.Height;
 
                 if (job.Job.Rotate == 90 || job.Job.Rotate == 270)
-                {
                     (w, h) = (h, w);
-                }
 
-                // Compute DAR = (w * sarNum) : (h * sarDen)
                 var darNum = w * sarNum;
                 var darDen = h * sarDen;
 
-                // Reduce fraction
                 long Gcd(long a, long b)
                 {
                     while (b != 0) (a, b) = (b, a % b);
                     return a;
                 }
+
                 var g = Gcd(darNum, darDen);
                 darNum /= g;
                 darDen /= g;
@@ -78,32 +251,21 @@ public class SimpleSplitter(int segmentNo, ILogger logger) : LoggingBase(logger,
                 $"{string.Join(" ", job.Job.Passthrough)} " +
                 $"\"{outputFile}\" -y";
         }
+
         var psi = new ProcessStartInfo
         {
             FileName              = "ffmpeg",
             Arguments             = args,
+            RedirectStandardInput = true,
             RedirectStandardError = true,
             UseShellExecute       = false,
             CreateNoWindow        = true
         };
 
-        using var proc = Process.Start(psi) ?? throw new Exception("Failed to start ffmpeg.");
-
-        var name = Path.GetFileNameWithoutExtension(outputFile);
-        await ShowFFMpegProgress(length, proc, name, token);
-
-        await proc.WaitForExitAsync(token);
-
-        ClearProgress(name);
-
-        if (proc.ExitCode != 0)
-            LogError($"Segment {name} FFmpeg encoding failed");
-        else
-            LogInfo($"Segment {name} processing completed");
+        return Process.Start(psi) ?? throw new Exception("Failed to start ffmpeg encode.");
     }
 
-
-    string? GetRotationFilter(int? degrees) =>
+    private string? GetRotationFilter(int? degrees) =>
         degrees switch
         {
             90 => "transpose=1",
@@ -111,80 +273,4 @@ public class SimpleSplitter(int segmentNo, ILogger logger) : LoggingBase(logger,
             270 => "transpose=2",
             _ => null
         };
-
-    private static long Gcd(long a, long b)
-    {
-        a = Math.Abs(a);
-        b = Math.Abs(b);
-
-        while (b != 0)
-        {
-            var t = b;
-            b = a % b;
-            a = t;
-        }
-
-        return a;
-    }
-
-    private async Task ShowFFMpegProgress(double length, Process proc, string name, CancellationToken token)
-    {
-        var sw = Stopwatch.StartNew();
-
-        string? line;
-        while ((line = await proc.StandardError.ReadLineAsync(token)) != null)
-        {
-            // Look for "time=00:00:03.52"
-            var idx = line.IndexOf("time=", StringComparison.OrdinalIgnoreCase);
-            if (idx < 0)
-                continue;
-
-            var timeStr = ExtractTimestamp(line, idx + 5);
-            if (timeStr == null)
-                continue;
-
-            if (!TryParseFfmpegTime(timeStr, out var current))
-                continue;
-
-            var progress = current.TotalSeconds / length;
-            if (progress < 0) progress = 0;
-            if (progress > 1) progress = 1;
-
-            var elapsed = sw.Elapsed;
-            var speed = current.TotalSeconds > 0
-            ? current.TotalSeconds / elapsed.TotalSeconds
-            : 0;
-
-            var remaining = length - current.TotalSeconds;
-            var etaSeconds = speed > 0 ? remaining / speed : remaining;
-            var eta = TimeSpan.FromSeconds(etaSeconds);
-
-            DrawProgress(name, progress, eta, speed);
-        }
-    }
-
-    private static string? ExtractTimestamp(string line, int startIndex)
-    {
-        // FFmpeg formats: HH:MM:SS.xx
-        // We read until whitespace
-        var end = startIndex;
-        while (end < line.Length && !char.IsWhiteSpace(line[end]))
-            end++;
-
-        if (end <= startIndex)
-            return null;
-
-        return line[startIndex..end];
-    }
-
-    private static bool TryParseFfmpegTime(string s, out TimeSpan ts)
-    {
-        // FFmpeg uses "00:00:03.52"
-        return TimeSpan.TryParseExact(
-            s,
-            @"hh\:mm\:ss\.ff",
-            CultureInfo.InvariantCulture,
-            out ts);
-    }
-
 }

@@ -38,7 +38,7 @@ static partial class Program
         var allJobs = new List<SingleTask>();
         foreach ( var job in cmd.Jobs )
         {
-            var jobs = await processor.GenerateJobs(job, cmd.Master.EstimateOnly, CancellationToken.None);
+            var jobs = await processor.GenerateJobs(job, cmd.Master.EstimateOnly, [], CancellationToken.None);
             allJobs.AddRange(jobs);
         }
 

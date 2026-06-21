@@ -2,6 +2,8 @@
 
 namespace splitter;
 
+public record Segment(double Start, double End);
+
 public class SingleJob
 {
     /// <summary>

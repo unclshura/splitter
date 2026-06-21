@@ -6,26 +6,25 @@ namespace splitter.algo;
 
 public sealed class YoloV10ObjectDetector : LoggingBase, IObjectDetector, IDisposable
 {
-    private readonly InferenceSession _session;
-    private readonly string _inputName;
-    private readonly string _outputName;
+    private readonly InferenceSession     _session;
+    private readonly string               _inputName;
+    private readonly string               _outputName;
 
-    private const int   _inputWidth       = 640;
-    private const int   _inputHeight      = 640;
-    private const float _scoreThreshold   = 0.35f;
-    private const float _nmsThreshold     = 0.45f;
-    private const int   _personClassIndex = 0;
+    private const int                     _inputWidth       = 640;
+    private const int                     _inputHeight      = 640;
+    private const float                   _nmsThreshold     = 0.45f;
+    private const int                     _personClassIndex = 0;
 
-    private readonly Mat _resizeMat = new();
-    private readonly Mat _rgbMat    = new();
+    private readonly Mat                  _resizeMat = new();
+    private readonly Mat                  _rgbMat    = new();
 
-    private readonly float[] _inputBuffer;
-    private readonly DenseTensor<float> _inputTensor;
+    private readonly float[]              _inputBuffer;
+    private readonly DenseTensor<float>   _inputTensor;
 
     private readonly List<NamedOnnxValue> _inputs = new(1);
 
-    private readonly List<Detection> _detections = new(256);
-    private readonly List<Detection> _nmsBuffer  = new(256);
+    private readonly List<Detection>      _detections = new(256);
+    private readonly List<Detection>      _nmsBuffer  = new(256);
 
     private readonly List<DetectedPerson> _results = new(64);
 
@@ -41,11 +40,11 @@ public sealed class YoloV10ObjectDetector : LoggingBase, IObjectDetector, IDispo
 
         public Detection(float x, float y, float w, float h, float score)
         {
-            X = x;
-            Y = y;
-            Width = w;
+            X      = x;
+            Y      = y;
+            Width  = w;
             Height = h;
-            Score = score;
+            Score  = score;
         }
     }
 
@@ -57,13 +56,13 @@ public sealed class YoloV10ObjectDetector : LoggingBase, IObjectDetector, IDispo
         var basePath  = AppDomain.CurrentDomain.BaseDirectory;
         var modelPath = Path.Combine(basePath, "models", "yolov10m.onnx");
 
-        _session = new InferenceSession(modelPath, options);
+        _session      = new InferenceSession(modelPath, options);
 
-        _inputName = _session.InputMetadata.Keys.First();
-        _outputName = _session.OutputMetadata.Keys.First();
+        _inputName    = _session.InputMetadata.Keys.First();
+        _outputName   = _session.OutputMetadata.Keys.First();
 
-        _inputBuffer = new float[1 * 3 * _inputHeight * _inputWidth];
-        _inputTensor = new DenseTensor<float>(_inputBuffer, new[] { 1, 3, _inputHeight, _inputWidth });
+        _inputBuffer  = new float[1 * 3 * _inputHeight * _inputWidth];
+        _inputTensor  = new DenseTensor<float>(_inputBuffer, new[] { 1, 3, _inputHeight, _inputWidth });
 
         _inputs.Add(NamedOnnxValue.CreateFromTensor(_inputName, _inputTensor));
     }

@@ -5,7 +5,7 @@ namespace splitter;
 
 public class JobProcessor(ILogger logger) : LoggingBase(logger, 0), IJobProcessor
 {
-    public async Task<List<SingleTask>> GenerateJobs(SingleJob job, bool estimateOnly, CancellationToken token)
+    public async Task<List<SingleTask>> GenerateJobs(SingleJob job, bool estimateOnly, IReadOnlyCollection<Segment> predefinedSegments, CancellationToken token)
     {
         var baseName = Path.GetFileNameWithoutExtension(job.InputFile);
 
@@ -78,24 +78,31 @@ public class JobProcessor(ILogger logger) : LoggingBase(logger, 0), IJobProcesso
             processorFactory = i => new SimpleSplitter(i, _logger);
         }
 
-        var jobs = Enumerable.Range(0, segments)
-            .Select(i => new SingleTask
-                (
-                    Job              : job,
-                    Info: info,
-                    OutputFileName   : BuildOutputFileName(job, i),
-                    SegmentIndex     : i,
-                    TotalSegments    : segments,
-                    SegmentStart     : i * segmentLength,
-                    SegmentLength    : (i == segments - 1)
-                        ? Math.Max(0.1, info.Duration - i * segmentLength)
-                                     : segmentLength,
-                    ProcessorFactory : processorFactory
-                )
-            )
-            .ToList();
+        var segmentsToUse = predefinedSegments;
 
-        return jobs;
+        if (predefinedSegments.Count == 0)
+        {
+            segmentsToUse = Enumerable.Range(0, segments).Select(i => new Segment
+            (
+                Start: i * segmentLength,
+                End  : (i == segments - 1)
+                        ? Math.Max(0.1, info.Duration)
+                        : (i + 1) * segmentLength
+            )).ToList();
+        }
+
+        return segmentsToUse.Select((s, i) => new SingleTask
+            (
+                Job             : job,
+                Info            : info,
+                OutputFileName  : BuildOutputFileName(job, i),
+                SegmentIndex    : i,
+                TotalSegments   : predefinedSegments.Count,
+                SegmentStart    : s.Start,
+                SegmentLength   : s.End - s.Start,
+                ProcessorFactory: processorFactory
+            )
+        ).ToList();
     }
 
     public async Task<bool> ProcessJobs(List<SingleTask> tasks, bool singleThreaded, CancellationToken token)

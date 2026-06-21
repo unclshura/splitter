@@ -375,7 +375,7 @@ public sealed class SpectreConsoleLogger : ILogger, IDisposable
             return new Measurement(width, width);
         }
 
-        public IEnumerable<Segment> Render(RenderOptions options, int maxWidth)
+        public IEnumerable<Spectre.Console.Rendering.Segment> Render(RenderOptions options, int maxWidth)
         {
             var width = Math.Max(1, maxWidth);
 

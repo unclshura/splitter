@@ -68,7 +68,7 @@ public partial class MainViewModel : ViewModelBase
 
             foreach (var file in files)
             {
-                var fileJobs = await _processor.GenerateJobs(file.GetJob(), false, _cancellationTokenSource.Token);
+                var fileJobs = await _processor.GenerateJobs(file.GetJob(), false, file.Segments, _cancellationTokenSource.Token);
                 jobs.AddRange(fileJobs);
             }
 

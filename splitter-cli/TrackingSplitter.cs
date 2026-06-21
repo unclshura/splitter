@@ -4,12 +4,60 @@ using System.Runtime.InteropServices;
 
 namespace splitter;
 
-public class TrackingSplitter : LoggingBase, ISegmentProcessor
+public sealed class TrackingSplitter : LoggingBase, ISegmentProcessor
 {
-    private readonly IObjectTracker          _tracker;
+    private readonly IObjectTracker _tracker;
+
+    // ------------------------------------------------------------
+    // Internal state (never exposed)
+    // ------------------------------------------------------------
+
+    private sealed class FrameProcessingState : IFrameProcessingState
+    {
+        public SingleTask Job           { get; }
+        public KalmanTracker Kalman     { get; }
+        public CameraController Camera  { get; }
+
+        public Mat FrameMat             { get; }
+        public Mat OutMat               { get; }
+        public byte[] InBuffer          { get; }
+        public byte[] OutBuffer         { get; }
+
+        public IVideoEnhancer? Enhancer { get; }
+
+        public int InBytes              { get; }
+        public int OutBytes             { get; }
+
+        public Process? DecodeProcess   { get; set; }
+        public Stream? DecodeStdout     { get; set; }
+
+        public FrameProcessingState(
+            SingleTask job,
+            KalmanTracker kalman,
+            CameraController camera,
+            Mat frameMat,
+            Mat outMat,
+            byte[] inBuffer,
+            byte[] outBuffer,
+            IVideoEnhancer? enhancer,
+            int inBytes,
+            int outBytes)
+        {
+            Job       = job;
+            Kalman    = kalman;
+            Camera    = camera;
+            FrameMat  = frameMat;
+            OutMat    = outMat;
+            InBuffer  = inBuffer;
+            OutBuffer = outBuffer;
+            Enhancer  = enhancer;
+            InBytes   = inBytes;
+            OutBytes  = outBytes;
+        }
+    }
 
     public TrackingSplitter(
-        int  progressLine,
+        int progressLine,
         IObjectTracker tracker,
         SingleJob cmd,
         ILogger logger)
@@ -18,177 +66,142 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor
         _tracker = tracker;
     }
 
+    // ============================================================
+    // PUBLIC PREVIEW API
+    // ============================================================
+
+    // ------------------------------------------------------------
+    // InitSegment
+    // ------------------------------------------------------------
+
+    public IFrameProcessingState InitSegment(SingleTask job, CancellationToken token)
+    {
+        var state = (FrameProcessingState)CreateFrameState(job);
+
+        if (state.Enhancer != null)
+            state.Enhancer.InitializeAsync(
+                state.OutMat.Width,
+                state.OutMat.Height,
+                5,
+                token).Wait(token);
+
+        var decode = StartFfmpegDecode(
+            job.Job.InputFile,
+            job.SegmentStart,
+            job.SegmentLength,
+            job.Job.Rotate,
+            job.Job.PlainText,
+            token).Result;
+
+        state.DecodeProcess = decode;
+        state.DecodeStdout = decode.StandardOutput.BaseStream;
+
+        return state;
+    }
+
+    // ------------------------------------------------------------
+    // GetNextProcessedFrame
+    // ------------------------------------------------------------
+
+    public Mat? GetNextProcessedFrame(
+        IFrameProcessingState processorState,
+        CancellationToken token)
+    {
+        var state = (FrameProcessingState)processorState;
+
+        if (state.DecodeStdout == null)
+            return null;
+
+        if (!TryReadNextFrame(state.DecodeStdout, state, token))
+            return null;
+
+        return ProcessFrame(state.FrameMat, state, state.Job, token);
+    }
+
+    // ------------------------------------------------------------
+    // FinishSegment
+    // ------------------------------------------------------------
+
+    public void FinishSegment(IFrameProcessingState processorState)
+    {
+        var state = (FrameProcessingState)processorState;
+
+        try
+        {
+            if (state.DecodeProcess != null && !state.DecodeProcess.HasExited)
+                state.DecodeProcess.Kill(entireProcessTree: true);
+        }
+        catch { }
+
+        try
+        {
+            if (state.DecodeProcess != null && !state.DecodeProcess.HasExited)
+                state.DecodeProcess.WaitForExit();
+        }
+        catch { }
+
+        if (state.Enhancer is IAsyncDisposable ad)
+            ad.DisposeAsync().AsTask().Wait();
+        else if (state.Enhancer is IDisposable d)
+            d.Dispose();
+    }
+
+    // ============================================================
+    // PROCESSSEGMENT (full pipeline)
+    // ============================================================
+
     public async Task ProcessSegment(SingleTask job, CancellationToken token)
     {
-        var inputFile   = job.Job.InputFile;
-        var outputFile  = job.OutputFileName;
-        var start       = job.SegmentStart;
-        var length      = job.SegmentLength;
-        var videoWidth  = job.Info.Width;
-        var videoHeight = job.Info.Height;
-        var fps         = job.Info.Fps;
-        var bitrate     = job.Info.Bitrate;
-        var ffmpegPassthroughParameters = job.Job.Passthrough;
+        var name = Path.GetFileNameWithoutExtension(job.OutputFileName);
+        var fps  = job.Info.Fps;
 
-        var name = Path.GetFileNameWithoutExtension(outputFile);
-
-        if (videoWidth <= 0 || videoHeight <= 0 || fps <= 0)
-        {
-            LogError($"{name}: ffprobe failed to get metadata");
-            return;
-        }
-
-        if (job.Job.Crop == null)
-        {
-            LogError($"{name}: Crop parameters are required");
-            return;
-        }
-
-        // Processing size (what you crop / feed into enhancer)
-        var procWidth  = job.Job.Debug ? videoWidth  : job.Job.Crop.Value.width;
-        var procHeight = job.Job.Debug ? videoHeight : job.Job.Crop.Value.height;
-
-        IVideoEnhancer? enhancer = null;
-
-        const int window = 5;
-
-        if (job.Job.Enhance)
-        {
-            enhancer = new RealBasicVsr2xDmlEnhancer();
-            await enhancer.InitializeAsync(procWidth, procHeight, window, token);
-        }
-
-        // Encoding size (what FFmpeg encoder expects)
-        var encWidth  = enhancer != null ? procWidth  * enhancer.ResolutionMultiplier : procWidth;
-        var encHeight = enhancer != null ? procHeight * enhancer.ResolutionMultiplier : procHeight;
-
-        LogInfo($"{name}: src={videoWidth}x{videoHeight} @ {fps:F3}fps, seg=[{start:F3},{length:F3}] proc={procWidth}x{procHeight} enc={encWidth}x{encHeight}");
-
-        var decode = await StartFfmpegDecode(inputFile, start, length, job.Job.Rotate, job.Job.PlainText, token);
-        using var decodeStdout = decode.StandardOutput.BaseStream;
+        var state = (FrameProcessingState)InitSegment(job, token);
 
         var encode = await StartFfmpegEncode(
-            inputFile,
-            outputFile,
-            start,
-            length,
-            encWidth,
-            encHeight,
+            job.Job.InputFile,
+            job.OutputFileName,
+            job.SegmentStart,
+            job.SegmentLength,
+            state.OutMat.Width,
+            state.OutMat.Height,
             job.Info,
-            ffmpegPassthroughParameters,
+            job.Job.Passthrough,
             job.Job.PlainText,
             token);
 
         using var encodeStdin = encode.StandardInput.BaseStream;
 
-        // Input: always full frame
-        var inBytes  = videoWidth * videoHeight * 3;
+        var totalFrames = (int)Math.Round(job.SegmentLength * fps);
+        var frameIndex  = 0;
+        var startTime   = DateTime.UtcNow;
 
-        // Output: encoded frame size (may be 4x if enhancement enabled)
-        var outBytes = encWidth * encHeight * 3;
-
-        var inBuffer  = new byte[inBytes];
-        var outBuffer = new byte[outBytes];
-
-        using var frameMat = new Mat(videoHeight, videoWidth, MatType.CV_8UC3);
-
-        // outMat is processing size (crop), not necessarily encoding size
-        using var outMat = new Mat(procHeight, procWidth, MatType.CV_8UC3);
-
-        var kalman = new KalmanTracker();
-        var camera = new CameraController(
-            videoWidth,
-            videoHeight,
-            job.Job.Crop.Value.width,
-            job.Job.Crop.Value.height,
-            kalman,
-            job.Job);
-
-        try
+        while (frameIndex < totalFrames)
         {
-            var startTime   = DateTime.UtcNow;
-            var totalFrames = (int)Math.Round(length * fps);
-            var frameIndex  = 0;
-            
-            var enhancedOutput = new Mat[window];
-            //totalFrames = 10;
-            while (frameIndex < totalFrames)
-            {
-                token.ThrowIfCancellationRequested();
+            token.ThrowIfCancellationRequested();
 
-                frameIndex++;
+            var frame = GetNextProcessedFrame(state, token);
+            if (frame == null)
+                break;
 
-                var read = await ReadExact(decodeStdout, inBuffer, 0, inBytes, token);
-                if (read != inBytes)
-                    break;
+            frameIndex++;
 
-                Marshal.Copy(inBuffer, 0, frameMat.Data, inBytes);
+            EncodeFrame(frame, state, encodeStdin);
 
-                var (objects, primary) = _tracker.SelectTrackedObject(job, frameMat, kalman.LastMeasurement);
+            var elapsed         = DateTime.UtcNow - startTime;
+            var progress        = totalFrames > 0 ? (double)frameIndex / totalFrames : 0.0;
+            var speed           = elapsed.TotalSeconds > 0 ? (frameIndex / elapsed.TotalSeconds) / fps : 0.0;
 
-                camera.Update(primary);
-                var roi = camera.Roi;
+            var remainingFrames = Math.Max(totalFrames - frameIndex, 0);
+            var etaSeconds      = speed > 0 ? remainingFrames / speed : 0.0;
+            var eta             = TimeSpan.FromSeconds(etaSeconds);
 
-                if (job.Job.Debug)
-                {
-                    DrawDebug(frameMat, objects, camera, kalman);
-                    frameMat.CopyTo(outMat); // outMat: procWidth x procHeight == full frame in debug
-                }
-                else
-                {
-                    using var cropped = new Mat(frameMat, roi);
-                    cropped.CopyTo(outMat); // outMat: procWidth x procHeight == crop
-                }
-
-                Mat frameToWrite = outMat;
-
-                if (enhancer != null)
-                {
-                    if (enhancer.TryProcessFrame(outMat, out var enhanced, token))
-                        frameToWrite = enhanced; // enhanced: encWidth x encHeight
-                    else
-                        continue;
-                }
-
-                Marshal.Copy(frameToWrite.Data, outBuffer, 0, outBytes);
-                encodeStdin.Write(outBuffer, 0, outBytes);
-
-                var elapsed         = DateTime.UtcNow - startTime;
-                var progress        = totalFrames > 0 ? (double)frameIndex / totalFrames : 0.0;
-                var speed           = elapsed.TotalSeconds > 0 ? (frameIndex / elapsed.TotalSeconds) / fps : 0.0;
-                var remainingFrames = Math.Max(totalFrames - frameIndex, 0);
-                var etaSeconds      = speed > 0 ? remainingFrames / speed : 0.0;
-                var eta             = TimeSpan.FromSeconds(etaSeconds);
-
-                DrawProgress(name, progress, eta, speed);
-            }
-
-            if (enhancer != null)
-            {
-                int count = enhancer.Flush(enhancedOutput, token);
-                for (int i = 0; i < count; i++)
-                {
-                    var mat = enhancedOutput[i]; // encWidth x encHeight
-                    Marshal.Copy(mat.Data, outBuffer, 0, outBytes);
-                    encodeStdin.Write(outBuffer, 0, outBytes);
-                }
-            }
-
-            encodeStdin.Flush();
-            encodeStdin.Close();
-
-            await encode.WaitForExitAsync();
-        }
-        finally
-        {
-            if (enhancer is IAsyncDisposable asyncDisp)
-                await asyncDisp.DisposeAsync();
-            else if (enhancer is IDisposable disp)
-                disp?.Dispose();
+            DrawProgress(name, progress, eta, speed);
         }
 
-        try { if (!decode.HasExited) decode.Kill(entireProcessTree: true); } catch { }
-        try { if (!decode.HasExited) await decode.WaitForExitAsync(); } catch { }
+        encodeStdin.Flush();
+        encodeStdin.Close();
+
+        await encode.WaitForExitAsync();
 
         ClearProgress(name);
 
@@ -196,12 +209,123 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor
             LogError($"{name}: FFmpeg encoding failed");
         else
             LogInfo($"{name}: Segment processing completed");
+
+        FinishSegment(state);
     }
 
+    // ============================================================
+    // INTERNAL HELPERS
+    // ============================================================
 
-    // ---------- FFmpeg decode / encode ----------
+    private object CreateFrameState(SingleTask job)
+    {
+        var w  = job.Info.Width;
+        var h  = job.Info.Height;
+        var cw = job.Job.Debug ? w : job.Job.Crop!.Value.width;
+        var ch = job.Job.Debug ? h : job.Job.Crop!.Value.height;
 
-    private async Task<Process> StartFfmpegDecode(string inputFile, double start, double length, int? rotate, bool plainText, CancellationToken token)
+        var kalman = new KalmanTracker();
+        var camera = new CameraController(w, h, cw, ch, kalman, job.Job);
+
+        var frameMat = new Mat(h, w, MatType.CV_8UC3);
+        var outMat   = new Mat(ch, cw, MatType.CV_8UC3);
+
+        var inBytes  = w * h * 3;
+        var outBytes = cw * ch * 3;
+
+        var inBuffer  = new byte[inBytes];
+        var outBuffer = new byte[outBytes];
+
+        IVideoEnhancer? enhancer = job.Job.Enhance
+            ? new RealBasicVsr2xDmlEnhancer()
+            : null;
+
+        return new FrameProcessingState(
+            job,
+            kalman,
+            camera,
+            frameMat,
+            outMat,
+            inBuffer,
+            outBuffer,
+            enhancer,
+            inBytes,
+            outBytes);
+    }
+
+    private bool TryReadNextFrame(
+        Stream decodeStdout,
+        FrameProcessingState state,
+        CancellationToken token)
+    {
+        var read = ReadExact(
+            decodeStdout,
+            state.InBuffer,
+            0,
+            state.InBytes,
+            token).Result;
+
+        if (read != state.InBytes)
+            return false;
+
+        Marshal.Copy(state.InBuffer, 0, state.FrameMat.Data, state.InBytes);
+        return true;
+    }
+
+    private Mat ProcessFrame(
+        Mat inputFrame,
+        FrameProcessingState state,
+        SingleTask job,
+        CancellationToken token)
+    {
+        var (objects, primary) =
+            _tracker.SelectTrackedObject(job, inputFrame, state.Kalman.LastMeasurement);
+
+        state.Camera.Update(primary);
+        var roi = state.Camera.Roi;
+
+        if (job.Job.Debug)
+        {
+            DebugOverlay.DrawDebug(inputFrame, objects, state.Camera, state.Kalman);
+            inputFrame.CopyTo(state.OutMat);
+        }
+        else
+        {
+            using var cropped = new Mat(inputFrame, roi);
+            cropped.CopyTo(state.OutMat);
+        }
+
+        if (state.Enhancer != null)
+        {
+            if (state.Enhancer.TryProcessFrame(state.OutMat, out var enhanced, token))
+                return enhanced;
+
+            return state.OutMat;
+        }
+
+        return state.OutMat;
+    }
+
+    private void EncodeFrame(
+        Mat frame,
+        FrameProcessingState state,
+        Stream encodeStdin)
+    {
+        Marshal.Copy(frame.Data, state.OutBuffer, 0, state.OutBytes);
+        encodeStdin.Write(state.OutBuffer, 0, state.OutBytes);
+    }
+    
+    // ------------------------------------------------------------
+    // FFmpeg helpers
+    // ------------------------------------------------------------
+
+    private async Task<Process> StartFfmpegDecode(
+        string inputFile,
+        double start,
+        double length,
+        int? rotate,
+        bool plainText,
+        CancellationToken token)
     {
         var ss = start .ToString("0.###", CultureInfo.InvariantCulture);
         var t  = length.ToString("0.###", CultureInfo.InvariantCulture);
@@ -209,10 +333,10 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor
         var rotateStr = GetRorationArg(rotate);
 
         var args =
-    $"-i \"{inputFile}\" -ss {ss} -t {t} " +
-    "-an -sn " +
-    $"-vf format=bgr24{rotateStr} " +
-    "-f rawvideo -";
+            $"-i \"{inputFile}\" -ss {ss} -t {t} " +
+            "-an -sn " +
+            $"-vf format=bgr24{rotateStr} " +
+            "-f rawvideo -";
 
         var psi = new ProcessStartInfo
         {
@@ -256,7 +380,6 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor
                 case 270: rotateStr = ",transpose=2"; break;
             }
         }
-
         return rotateStr;
     }
 
@@ -265,7 +388,8 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor
         string outputFile,
         double start,
         double length,
-        int width, int height,
+        int width,
+        int height,
         VideoInfo info,
         string[] passthrough,
         bool plainText,
@@ -275,19 +399,17 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor
         var fpsStr = info.Fps.ToString("0.###", CultureInfo.InvariantCulture);
         var ss     = start.ToString("0.###", CultureInfo.InvariantCulture);
         var t      = length.ToString("0.###", CultureInfo.InvariantCulture);
+
         var sarArg = !string.IsNullOrWhiteSpace(info.SampleAspectRatio)
             ? $"-vf setsar={info.SampleAspectRatio} "
             : "";
 
-        var darArg    = "";
-
+        var darArg = "";
         if (info.Sar is { } s)
         {
-            // compute DAR from output size and SAR
-            var darNum = width * s.X;
+            var darNum = width  * s.X;
             var darDen = height * s.Y;
 
-            // clamp to int and reduce
             var dn = (int)Math.Min(int.MaxValue, Math.Max(int.MinValue, darNum));
             var dd = (int)Math.Min(int.MaxValue, Math.Max(int.MinValue, darDen));
             ReduceFraction(ref dn, ref dd);
@@ -305,9 +427,6 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor
             sarArg + darArg +
             "-c:a copy " +
             pass + $" \"{outputFile}\"";
-
-        // "-c:a aac -b:a 192k " +
-
 
         var psi = new ProcessStartInfo
         {
@@ -330,18 +449,14 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor
             {
                 string? line;
                 while ((line = await p.StandardError.ReadLineAsync(token)) != null)
-                {
                     if (plainText)
                         LogInfo($"[ffmpeg-encode] {fileName}: {line}");
-                }
             }
             catch { }
         });
 
         return p;
     }
-
-    // ---------- helpers ----------
 
     private static void ReduceFraction(ref int num, ref int den)
     {
@@ -363,7 +478,13 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor
             den /= g;
         }
     }
-    private static async Task<int> ReadExact(Stream s, byte[] buffer, int offset, int count, CancellationToken token)
+
+    private static async Task<int> ReadExact(
+        Stream s,
+        byte[] buffer,
+        int offset,
+        int count,
+        CancellationToken token)
     {
         var total = 0;
         while (total < count)
@@ -376,35 +497,5 @@ public class TrackingSplitter : LoggingBase, ISegmentProcessor
         return total;
     }
 
-    private void DrawDebug(
-        Mat frame,
-        List<DetectedPerson> objects,
-        CameraController camera,
-        KalmanTracker kalman)
-    {
-        if (camera.ObjectBox.HasValue)
-        {
-            var fb = camera.ObjectBox.Value;
-            Cv2.Rectangle(frame, fb, Scalar.LimeGreen, 2);
-        }
-
-        Cv2.Circle(frame,
-            new Point((int)camera.SmoothedCenter.X, (int)camera.SmoothedCenter.Y),
-            6, Scalar.LimeGreen, -1);
-
-        Cv2.Rectangle(frame, camera.Roi,
-            camera.ObjectCenter.HasValue ? Scalar.Yellow : Scalar.Red, 3);
-
-        DrawText(frame, $"Faces: {objects.Count}", 20, 40, Scalar.White);
-        DrawText(frame, $"LostFrames: {camera.LostFrames}", 20, 70, Scalar.White);
-        DrawText(frame, $"Noise: {kalman.CurrentNoise:F3}", 20, 130, Scalar.White);
-        DrawText(frame, $"Camera: {camera.CameraCenter.X:F1},{camera.CameraCenter.Y:F1}", 20, 160, Scalar.White);
-    }
-
-    private static void DrawText(Mat img, string text, int x, int y, Scalar color)
-    {
-        Cv2.PutText(img, text, new Point(x, y),
-            HersheyFonts.HersheySimplex, 0.6, color, 2);
-    }
 
 }

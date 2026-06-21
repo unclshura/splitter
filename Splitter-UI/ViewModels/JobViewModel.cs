@@ -8,8 +8,6 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Splitter_UI.ViewModels;
 
-public record Segment(double Start, double End);
-
 public partial class JobViewModel : ObservableObject
 {
     private SingleJob Job { get; }
