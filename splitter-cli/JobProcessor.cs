@@ -105,18 +105,18 @@ public class JobProcessor(ILogger logger) : LoggingBase(logger, 0), IJobProcesso
         ).ToList();
     }
 
-    public async Task<bool> ProcessJobs(List<SingleTask> tasks, bool singleThreaded, CancellationToken token)
+    public async Task<bool> ProcessJobs(List<SingleTask> tasks, bool singleThreaded, Action<SingleTask, FrameProcessingResult>? onFrameProcessed, CancellationToken token)
     {
 
         if (singleThreaded)
         {
             LogInfo("Starting single-threaded splitting...");
-            await RunSingleThreaded(tasks, token);
+            await RunSingleThreaded(tasks, onFrameProcessed, token);
         }
         else
         {
             LogInfo("Starting multi-threaded splitting...");
-            await RunMultiThreaded(tasks, token);
+            await RunMultiThreaded(tasks, onFrameProcessed, token);
         }
 
         LogInfo("Done.");
@@ -133,7 +133,7 @@ public class JobProcessor(ILogger logger) : LoggingBase(logger, 0), IJobProcesso
     // Multi-threaded splitting
     // -----------------------------
 
-    private async Task RunMultiThreaded(List<SingleTask> jobs, CancellationToken token)
+    private async Task RunMultiThreaded(List<SingleTask> jobs, Action<SingleTask,FrameProcessingResult>? onFrameProcessed, CancellationToken token)
     {
         LogProgress(0.0, TimeSpan.Zero, 0.0);
 
@@ -167,7 +167,7 @@ public class JobProcessor(ILogger logger) : LoggingBase(logger, 0), IJobProcesso
                             return; 
                         await Task.Yield();
                     }
-                    await ProcessSegment(job, slot + 1, token);
+                    await ProcessSegment(job, slot + 1, onFrameProcessed, token);
 
                     var processed = Interlocked.Increment(ref processedSegments);
                     var elapsed   = sw.Elapsed;
@@ -194,21 +194,21 @@ public class JobProcessor(ILogger logger) : LoggingBase(logger, 0), IJobProcesso
     // Single-threaded splitting
     // -----------------------------
 
-    private async Task RunSingleThreaded(List<SingleTask> jobs, CancellationToken token)
+    private async Task RunSingleThreaded(List<SingleTask> jobs, Action<SingleTask, FrameProcessingResult>? onFrameProcessed, CancellationToken token)
     {
         foreach (var job in jobs)
         {
-            await ProcessSegment(job, 0, token);
+            await ProcessSegment(job, 0, onFrameProcessed, token);
         }
 
     }
 
-    private async Task ProcessSegment(SingleTask t, int slot, CancellationToken token)
+    private async Task ProcessSegment(SingleTask t, int slot, Action<SingleTask, FrameProcessingResult>? onFrameProcessed, CancellationToken token)
     {
         var processor = t.ProcessorFactory(slot);
         try
         {
-            await processor.ProcessSegment(t, token);
+            await processor.ProcessSegment(t, x=>onFrameProcessed?.Invoke(t, x), token);
         }
         finally
         {

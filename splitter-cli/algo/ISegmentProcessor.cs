@@ -4,11 +4,13 @@ public interface IFrameProcessingState
 {
 }
 
+public sealed record FrameProcessingResult(Mat? Image, List<DetectedPerson> Detected, DetectedPerson? Primary);
+
 public interface ISegmentProcessor
 {
     IFrameProcessingState InitSegment(SingleTask job, CancellationToken token);
-    Mat? GetNextProcessedFrame( IFrameProcessingState processorState, CancellationToken token);
+    FrameProcessingResult GetNextProcessedFrame(IFrameProcessingState processorState, CancellationToken token);
     void FinishSegment(IFrameProcessingState processorState);
 
-    Task ProcessSegment( SingleTask job, CancellationToken token);
+    Task ProcessSegment( SingleTask job, Action<FrameProcessingResult>? onFrameProcessed, CancellationToken token);
 }

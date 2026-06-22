@@ -49,7 +49,7 @@ static partial class Program
             return 0;
         }
 
-        var success = await processor.ProcessJobs(allJobs, cmd.Master.SingleThreaded, CancellationToken.None);
+        var success = await processor.ProcessJobs(allJobs, cmd.Master.SingleThreaded, null, CancellationToken.None);
         if (uiTask != null)
         {
             if ( cts != null )

@@ -103,17 +103,17 @@ public sealed class TrackingSplitter : LoggingBase, ISegmentProcessor
     // GetNextProcessedFrame
     // ------------------------------------------------------------
 
-    public Mat? GetNextProcessedFrame(
+    public FrameProcessingResult GetNextProcessedFrame(
         IFrameProcessingState processorState,
         CancellationToken token)
     {
         var state = (FrameProcessingState)processorState;
 
         if (state.DecodeStdout == null)
-            return null;
+            return new FrameProcessingResult(null, [], null);
 
         if (!TryReadNextFrame(state.DecodeStdout, state, token))
-            return null;
+            return new FrameProcessingResult(null, [], null);
 
         return ProcessFrame(state.FrameMat, state, state.Job, token);
     }
@@ -150,7 +150,7 @@ public sealed class TrackingSplitter : LoggingBase, ISegmentProcessor
     // PROCESSSEGMENT (full pipeline)
     // ============================================================
 
-    public async Task ProcessSegment(SingleTask job, CancellationToken token)
+    public async Task ProcessSegment(SingleTask job, Action<FrameProcessingResult>? onFrameProcessed, CancellationToken token)
     {
         var name = Path.GetFileNameWithoutExtension(job.OutputFileName);
         var fps  = job.Info.Fps;
@@ -180,12 +180,14 @@ public sealed class TrackingSplitter : LoggingBase, ISegmentProcessor
             token.ThrowIfCancellationRequested();
 
             var frame = GetNextProcessedFrame(state, token);
-            if (frame == null)
+            if (frame.Image == null)
                 break;
 
             frameIndex++;
 
-            EncodeFrame(frame, state, encodeStdin);
+            EncodeFrame(frame.Image, state, encodeStdin);
+
+            onFrameProcessed?.Invoke(frame);
 
             var elapsed         = DateTime.UtcNow - startTime;
             var progress        = totalFrames > 0 ? (double)frameIndex / totalFrames : 0.0;
@@ -272,7 +274,7 @@ public sealed class TrackingSplitter : LoggingBase, ISegmentProcessor
         return true;
     }
 
-    private Mat ProcessFrame(
+    private FrameProcessingResult ProcessFrame(
         Mat inputFrame,
         FrameProcessingState state,
         SingleTask job,
@@ -298,12 +300,12 @@ public sealed class TrackingSplitter : LoggingBase, ISegmentProcessor
         if (state.Enhancer != null)
         {
             if (state.Enhancer.TryProcessFrame(state.OutMat, out var enhanced, token))
-                return enhanced;
+                return new FrameProcessingResult(enhanced, objects, primary);
 
-            return state.OutMat;
+            return new FrameProcessingResult(state.OutMat, objects, primary);
         }
 
-        return state.OutMat;
+        return new FrameProcessingResult(state.OutMat, objects, primary);
     }
 
     private void EncodeFrame(

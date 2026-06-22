@@ -68,10 +68,7 @@ public partial class JobViewModel : ObservableObject
         : "";
 
     public override string ToString() => $"{FileName}: {TextDesc}";
-
-    public ObservableCollection<ParameterEntry> ParametersList { get; }
-        = new();
-
+    public ObservableCollection<ParameterEntry> ParametersList { get; } = new();
     public ObservableCollection<Segment> Segments { get; } = new();
 
     public string CropText

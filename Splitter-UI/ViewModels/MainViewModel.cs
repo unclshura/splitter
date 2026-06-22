@@ -72,7 +72,7 @@ public partial class MainViewModel : ViewModelBase
                 jobs.AddRange(fileJobs);
             }
 
-            await _processor.ProcessJobs(jobs, jobs.First().Job.Enhance, _cancellationTokenSource.Token);
+            await _processor.ProcessJobs(jobs, jobs.First().Job.Enhance, null, _cancellationTokenSource.Token);
         }
         catch (Exception ex)
         {

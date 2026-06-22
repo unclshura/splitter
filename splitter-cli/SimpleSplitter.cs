@@ -58,12 +58,12 @@ public sealed class SimpleSplitter : LoggingBase, ISegmentProcessor
     // GetNextProcessedFrame
     // ============================================================
 
-    public Mat? GetNextProcessedFrame(IFrameProcessingState processorState, CancellationToken token)
+    public FrameProcessingResult GetNextProcessedFrame(IFrameProcessingState processorState, CancellationToken token)
     {
         var state = (State)processorState;
 
         if (state.DecodeStdout == null)
-            return null;
+            return new FrameProcessingResult(null, [], null);
 
         // SimpleSplitter does not modify frames; it only copies or rotates.
         // For preview, we decode raw frames and return them as-is.
@@ -76,12 +76,12 @@ public sealed class SimpleSplitter : LoggingBase, ISegmentProcessor
         var buffer = new byte[bytes];
         var read = state.DecodeStdout.Read(buffer, 0, bytes);
         if (read != bytes)
-            return null;
+            return new FrameProcessingResult(null, [], null);
 
         var mat = new Mat(h, w, MatType.CV_8UC3);
         System.Runtime.InteropServices.Marshal.Copy(buffer, 0, mat.Data, bytes);
 
-        return mat;
+        return new FrameProcessingResult(mat, [], null);
     }
 
     // ============================================================
@@ -111,7 +111,7 @@ public sealed class SimpleSplitter : LoggingBase, ISegmentProcessor
     // ProcessSegment (now uses preview API)
     // ============================================================
 
-    public async Task ProcessSegment(SingleTask job, CancellationToken token)
+    public async Task ProcessSegment(SingleTask job, Action<FrameProcessingResult>? onFrameProcessed, CancellationToken token)
     {
         var state = (State)InitSegment(job, token);
 
@@ -125,7 +125,8 @@ public sealed class SimpleSplitter : LoggingBase, ISegmentProcessor
         {
             token.ThrowIfCancellationRequested();
 
-            var frame = GetNextProcessedFrame(state, token);
+            var res = GetNextProcessedFrame(state, token);
+            var frame = res.Image;
             if (frame == null)
                 break;
 
@@ -134,6 +135,8 @@ public sealed class SimpleSplitter : LoggingBase, ISegmentProcessor
             var buffer = new byte[bytes];
             System.Runtime.InteropServices.Marshal.Copy(frame.Data, buffer, 0, bytes);
             encodeStdin.Write(buffer, 0, bytes);
+            
+            onFrameProcessed?.Invoke(res);
 
             frame.Dispose();
         }
