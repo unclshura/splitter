@@ -219,7 +219,7 @@ public sealed class TrackingSplitter : LoggingBase, ISegmentProcessor
     // INTERNAL HELPERS
     // ============================================================
 
-    private object CreateFrameState(SingleTask job)
+    private FrameProcessingState CreateFrameState(SingleTask job)
     {
         var w  = job.Info.Width;
         var h  = job.Info.Height;

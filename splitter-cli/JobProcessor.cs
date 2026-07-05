@@ -57,7 +57,11 @@ public class JobProcessor(ILogger logger) : LoggingBase(logger, 0), IJobProcesso
             return [];
 
         Func<int, ISegmentProcessor> processorFactory;
-        if (job.Crop != null)
+        if (job.Rotate != null && job.Rotate != 0)
+        {
+            processorFactory = i => new RotatingSplitter(i, _logger);
+        }
+        else if (job.Crop != null && job.Detect != null && job.Detect != "none")
         {
             processorFactory = i =>
             {
@@ -75,7 +79,7 @@ public class JobProcessor(ILogger logger) : LoggingBase(logger, 0), IJobProcesso
         }
         else
         {
-            processorFactory = i => new SimpleSplitter(i, _logger);
+            processorFactory = i => new PassthroughSplitter(i, _logger);
         }
 
         var segmentsToUse = predefinedSegments;

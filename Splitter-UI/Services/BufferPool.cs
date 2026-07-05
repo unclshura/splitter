@@ -2,7 +2,6 @@
 
 public sealed class BufferPool : IBufferPool
 {
-    private readonly int _capacity;
 
     public sealed class Entry
     {
@@ -18,10 +17,14 @@ public sealed class BufferPool : IBufferPool
             Bgr = new byte[w * h * 3];
             Bgra = new byte[w * h * 4];
         }
+
+        override public string ToString() => $"Entry({Width}x{Height})";
     }
 
     private readonly Dictionary<(int w, int h), LinkedListNode<Entry>> _map;
     private readonly LinkedList<Entry> _lru;
+    private readonly int _capacity;
+    private readonly Lock _lock = new();
 
     public BufferPool()
     {
