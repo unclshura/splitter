@@ -34,8 +34,10 @@ public partial class ProgressViewModel : ObservableObject
             if (progressLine < 0 || progressLine > Processes.Count)
                 return;
 
-            NumberOfProcesses -= 1;
-            Processes[progressLine] = new ProgressInfo("", progressLine, 0, TimeSpan.Zero, 0);
+            if (NumberOfProcesses > 0 )
+                NumberOfProcesses -= 1;
+            if ( Processes.Count > progressLine)
+                Processes[progressLine] = new ProgressInfo("", progressLine, 0, TimeSpan.Zero, 0);
         }
     });
 
