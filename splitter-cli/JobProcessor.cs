@@ -79,8 +79,8 @@ public class JobProcessor(ILogger logger) : LoggingBase(logger, 0), IJobProcesso
         }
         else
         {
-            //processorFactory = i => new PassthroughSplitter(i, _logger);
-            processorFactory = i => new ReencodeSplitter(i, _logger);
+            processorFactory = i => new PassthroughSplitter(i, _logger);
+            //processorFactory = i => new ReencodeSplitter(i, _logger);
         }
 
         var segmentsToUse = predefinedSegments;
