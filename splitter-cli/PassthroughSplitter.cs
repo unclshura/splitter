@@ -114,14 +114,14 @@ public sealed class PassthroughSplitter : LoggingBase, ISegmentProcessor
         {
             FileName = "ffprobe",
             Arguments =
-            "-select_streams v " +
-            $"-read_intervals \"{(segmentStart-0.1).ToString(CultureInfo.InvariantCulture)}%+{window.ToString(CultureInfo.InvariantCulture)}\" " +
-            "-skip_frame nokey " +
-            "-show_packets " +
-            "-show_entries packet=pts_time,flags " +
-            "-of compact=p=0 " +
-            "-v quiet " +
-            $"\"{inputFile}\"",
+                "-select_streams v " +
+                $"-read_intervals \"{(segmentStart-0.1).ToString(CultureInfo.InvariantCulture)}%+{window.ToString(CultureInfo.InvariantCulture)}\" " +
+                "-skip_frame nokey " +
+                "-show_packets " +
+                "-show_entries packet=pts_time,flags " +
+                "-of compact=p=0 " +
+                "-v quiet " +
+                $"\"{inputFile}\"",
             RedirectStandardOutput = true,
             UseShellExecute = false,
             CreateNoWindow = true

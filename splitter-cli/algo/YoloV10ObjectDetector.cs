@@ -54,7 +54,7 @@ public sealed class YoloV10ObjectDetector : LoggingBase, IObjectDetector, IDispo
         options.AppendExecutionProvider_DML();
 
         var basePath  = AppDomain.CurrentDomain.BaseDirectory;
-        var modelPath = Path.Combine(basePath, "models", "yolov10m.onnx");
+        var modelPath = Path.Combine(basePath, "models", "yolo26m.onnx"); // yolov10m.onnx
 
         _session      = new InferenceSession(modelPath, options);
 

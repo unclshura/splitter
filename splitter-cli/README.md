@@ -21,7 +21,14 @@ It supports batch input, flexible duration formats, rotation, smart face/body-aw
 - FFmpeg and FFprobe available in system PATH
 - .NET 10 Runtime or newer
 
-If you want to update model:
+Due to GitHub file size limits, Splitter does not include the ONNX models used for face and body detection. You must download them separately and place them in the `models` folder.
+
+For body detection we use [Ultralytics/YOLO26 · Hugging Face](https://huggingface.co/Ultralytics/YOLO26).
+
+Exact quantation Yolo26s.onnx (body detection) can be downloaded from [yolo26m/yolo26m.onnx · prithivMLmods/YOLO26-ONNX at main](https://huggingface.co/prithivMLmods/YOLO26-ONNX/blob/main/yolo26m/yolo26m.onnx).
+Model card: [prithivMLmods/YOLO26-ONNX · Hugging Face](https://huggingface.co/prithivMLmods/YOLO26-ONNX)
+
+If you want to update model yourself:
 
 - For face detection: [opencv_zoo/models/face_detection_yunet at main · opencv/opencv_zoo](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet)
 - For body detection: [yolov8s.pt · Ultralytics/YOLOv8 at main](https://huggingface.co/Ultralytics/YOLOv8/blob/main/yolov8s.pt)
