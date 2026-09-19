@@ -22,7 +22,7 @@ public sealed class MatToBitmapConverter(IBufferPool _pool) : IMatToBitmapConver
 
         lock (_sync)
         {
-            var entry = _pool.Get(w, h);
+            using var entry = _pool.Get(w, h);
 
             var src = mat;
             if (!src.IsContinuous())
@@ -65,7 +65,7 @@ public sealed class MatToBitmapConverter(IBufferPool _pool) : IMatToBitmapConver
 
     public Bitmap Convert(byte[] bgr, int width, int height, Bitmap? existing = null)
     {
-        var entry = _pool.Get(width, height);
+        using var entry = _pool.Get(width, height);
         ConvertBgrToBgra(bgr, entry.Bgra, width, height);
 
         if (existing is WriteableBitmap wb &&

@@ -47,6 +47,7 @@ public sealed class CameraController
         _cropHeight   = cropHeight;
         _kalman       = kalman;
         _cmd          = cmd;
+        DefaultCenter = new Point2f(videoWidth * _cmd.GravitateTo.X, videoHeight * _cmd.GravitateTo.Y);
         _cameraCenter = DefaultCenter;
         _state        = TrackState.Tracking;
 
@@ -58,7 +59,7 @@ public sealed class CameraController
         _kalman.Reset(_cameraCenter);
     }
 
-    private Point2f DefaultCenter => _cmd.GravitateTo;
+    private Point2f DefaultCenter { get; set; }
 
     public int LostFrames         => _lostFrames;
     public Point2f CameraCenter   => _cameraCenter;
@@ -148,7 +149,7 @@ public sealed class CameraController
             smoothedCenter = _kalman.Update(objectCenter);
 
             var driftEasing = 0.01f;
-            var fallbackCenter = new Point2f(_videoWidth / 2f, _videoHeight / 2f);
+            var fallbackCenter = DefaultCenter;
 
             _cameraCenter = new Point2f(
                 _cameraCenter.X + (fallbackCenter.X - _cameraCenter.X) * driftEasing,

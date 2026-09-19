@@ -59,7 +59,7 @@ public sealed class ThumbnailService : IThumbnailService
         height ??= ThumbHeight;
         skip ??= TimeSpan.Zero;
 
-        var entry = _pool.Get(width.Value, height.Value);
+        using var entry = _pool.Get(width.Value, height.Value);
 
         var ok = await DecodeFrameAsync(
             entry.Bgr,

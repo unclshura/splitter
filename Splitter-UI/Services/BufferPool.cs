@@ -1,62 +1,42 @@
-﻿namespace Splitter_UI.Services;
+﻿using System.Buffers;
+
+namespace Splitter_UI.Services;
 
 public sealed class BufferPool : IBufferPool
 {
-
-    public sealed class Entry
+    public sealed class Entry : IDisposable
     {
+        private bool _disposed;
+
         public readonly int Width;
         public readonly int Height;
-        public readonly byte[] Bgr;
-        public readonly byte[] Bgra;
 
-        public Entry(int w, int h)
+        public byte[] Bgr;
+        public byte[] Bgra;
+
+        internal Entry(int w, int h)
         {
             Width = w;
             Height = h;
-            Bgr = new byte[w * h * 3];
-            Bgra = new byte[w * h * 4];
+
+            Bgr = ArrayPool<byte>.Shared.Rent(w * h * 3);
+            Bgra = ArrayPool<byte>.Shared.Rent(w * h * 4);
         }
 
-        override public string ToString() => $"Entry({Width}x{Height})";
-    }
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
 
-    private readonly Dictionary<(int w, int h), LinkedListNode<Entry>> _map;
-    private readonly LinkedList<Entry> _lru;
-    private readonly int _capacity;
-    private readonly Lock _lock = new();
+            ArrayPool<byte>.Shared.Return(Bgr);
+            ArrayPool<byte>.Shared.Return(Bgra);
+        }
 
-    public BufferPool()
-    {
-        _capacity = 8;
-        _map = new Dictionary<(int w, int h), LinkedListNode<Entry>>(_capacity);
-        _lru = new LinkedList<Entry>();
+        public override string ToString() => $"Entry({Width}x{Height})";
     }
 
     public Entry Get(int w, int h)
     {
-        var key = (w, h);
-
-        if (_map.TryGetValue(key, out var node))
-        {
-            _lru.Remove(node);
-            _lru.AddLast(node);
-            return node.Value;
-        }
-
-        var created = new Entry(w, h);
-        var newNode = new LinkedListNode<Entry>(created);
-
-        _lru.AddLast(newNode);
-        _map[key] = newNode;
-
-        if (_lru.Count > _capacity)
-        {
-            var first = _lru.First!;
-            _lru.RemoveFirst();
-            _map.Remove((first.Value.Width, first.Value.Height));
-        }
-
-        return created;
+        return new Entry(w, h);
     }
 }
