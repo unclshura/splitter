@@ -19,12 +19,12 @@ public sealed class IdentityCache
         if (_ids.Count == 0)
             return CreateNew(embedding);
 
-        int bestIndex = -1;
-        float bestDist = float.MaxValue;
+        var bestIndex = -1;
+        var bestDist = float.MaxValue;
 
-        for (int i = 0; i < _ids.Count; i++)
+        for (var i = 0; i < _ids.Count; i++)
         {
-            float d = CosineDistance(_ids[i].Embedding, embedding);
+            var d = CosineDistance(_ids[i].Embedding, embedding);
             if (d < bestDist)
             {
                 bestDist = d;
@@ -58,8 +58,8 @@ public sealed class IdentityCache
 
     private static float CosineDistance(float[] a, float[] b)
     {
-        float dot = 0f;
-        for (int i = 0; i < a.Length; i++)
+        var dot = 0f;
+        for (var i = 0; i < a.Length; i++)
             dot += a[i] * b[i];
 
         return 1f - dot;
@@ -67,7 +67,7 @@ public sealed class IdentityCache
 
     private static void UpdateEma(float[] ema, float[] v)
     {
-        for (int i = 0; i < ema.Length; i++)
+        for (var i = 0; i < ema.Length; i++)
             ema[i] = ema[i] * (1 - _emaAlpha) + v[i] * _emaAlpha;
     }
 }

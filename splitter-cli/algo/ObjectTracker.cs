@@ -14,7 +14,7 @@ public class ObjectTracker(IObjectDetector _detector, IEmbeddingExtractor _embed
             .ToList();
 
         // attach embeddings
-        for (int i = 0; i < objects.Count; i++)
+        for (var i = 0; i < objects.Count; i++)
         {
             var p = objects[i];
 

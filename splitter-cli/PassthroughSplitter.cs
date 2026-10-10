@@ -131,7 +131,7 @@ public sealed class PassthroughSplitter : LoggingBase, ISegmentProcessor
         var output = p!.StandardOutput.ReadToEnd();
         p.WaitForExit();
 
-        double best = double.MaxValue;
+        var best = double.MaxValue;
 
         foreach (var line in output.Split('\n'))
         {

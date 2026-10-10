@@ -203,7 +203,7 @@ public partial class JobViewModel : ObservableObject
             return;
         var duration = SegmentDuration;
         var segments = (int)Math.Ceiling(Probe.Duration / duration);
-        for (int i = 0; i < segments; i++)
+        for (var i = 0; i < segments; i++)
         {
             var start = i * duration;
             var end   = Math.Min(start + duration, Probe.Duration);
@@ -361,9 +361,9 @@ public partial class JobViewModel : ObservableObject
 
     private int GetCurrentSegment()
     {
-        double pos = SliderLiveValue;
+        var pos = SliderLiveValue;
 
-        for (int i = 0; i < Segments.Count; i++)
+        for (var i = 0; i < Segments.Count; i++)
         {
             var s = Segments[i];
             if (pos < s.Start)

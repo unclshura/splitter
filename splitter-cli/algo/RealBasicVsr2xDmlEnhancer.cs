@@ -40,10 +40,10 @@ public sealed unsafe class RealBasicVsr2xDmlEnhancer : IVideoEnhancer
 
         _session = new InferenceSession(modelPath, _options);
 
-        int inputSize  = window * 3 * width * height;
-        int outW       = width * 2;
-        int outH       = height * 2;
-        int outputSize = 3 * outW * outH;
+        var inputSize  = window * 3 * width * height;
+        var outW       = width * 2;
+        var outH       = height * 2;
+        var outputSize = 3 * outW * outH;
 
         _inputBuffer = new float[inputSize];
         _outputBuffer = new float[outputSize];
@@ -74,40 +74,40 @@ public sealed unsafe class RealBasicVsr2xDmlEnhancer : IVideoEnhancer
         if (_frames.Count < _window)
             return false;
 
-        int T = _window;
-        int H = _inH;
-        int W = _inW;
+        var T = _window;
+        var H = _inH;
+        var W = _inW;
 
         // ------------------------------------------------------------
         // INPUT: CV_8UC3 BGR -> normalized RGB, channels-first [1,T,3,H,W]
         // ------------------------------------------------------------
 
-        int t = 0;
+        var t = 0;
 
         foreach (var f in _frames)
         {
-            byte* src = (byte*)f.Data;
-            int stride = (int)f.Step();
+            var src = (byte*)f.Data;
+            var stride = (int)f.Step();
 
-            for (int y = 0; y < H; y++)
+            for (var y = 0; y < H; y++)
             {
-                byte* row = src + y * stride;
+                var row = src + y * stride;
 
-                for (int x = 0; x < W; x++)
+                for (var x = 0; x < W; x++)
                 {
-                    int p = x * 3;
+                    var p = x * 3;
 
-                    byte b = row[p + 0];
-                    byte g = row[p + 1];
-                    byte r = row[p + 2];
+                    var b = row[p + 0];
+                    var g = row[p + 1];
+                    var r = row[p + 2];
 
-                    float rN = r * (1.0f / 255.0f);
-                    float gN = g * (1.0f / 255.0f);
-                    float bN = b * (1.0f / 255.0f);
+                    var rN = r * (1.0f / 255.0f);
+                    var gN = g * (1.0f / 255.0f);
+                    var bN = b * (1.0f / 255.0f);
 
-                    int idxR = ((((0 * T) + t) * 3 + 0) * H + y) * W + x;
-                    int idxG = ((((0 * T) + t) * 3 + 1) * H + y) * W + x;
-                    int idxB = ((((0 * T) + t) * 3 + 2) * H + y) * W + x;
+                    var idxR = ((((0 * T) + t) * 3 + 0) * H + y) * W + x;
+                    var idxG = ((((0 * T) + t) * 3 + 1) * H + y) * W + x;
+                    var idxB = ((((0 * T) + t) * 3 + 2) * H + y) * W + x;
 
                     _inputBuffer[idxR] = rN;
                     _inputBuffer[idxG] = gN;
@@ -126,11 +126,11 @@ public sealed unsafe class RealBasicVsr2xDmlEnhancer : IVideoEnhancer
         var outTensor = results[0].AsTensor<float>();
         var dims = outTensor.Dimensions; // [1, T, 3, H2, W2]
 
-        int outT = dims[1];
-        int outH = dims[3];
-        int outW = dims[4];
+        var outT = dims[1];
+        var outH = dims[3];
+        var outW = dims[4];
 
-        int last = outT - 1;
+        var last = outT - 1;
 
         // ------------------------------------------------------------
         // STEP 1: Bicubic upscale input to x2
@@ -151,28 +151,28 @@ public sealed unsafe class RealBasicVsr2xDmlEnhancer : IVideoEnhancer
 
         unsafe
         {
-            float* basePtr = (float*)baseFloat.Data;
-            int baseStride = (int)(baseFloat.Step() / sizeof(float));
+            var basePtr = (float*)baseFloat.Data;
+            var baseStride = (int)(baseFloat.Step() / sizeof(float));
 
-            for (int y = 0; y < outH; y++)
+            for (var y = 0; y < outH; y++)
             {
-                float* row = basePtr + y * baseStride;
+                var row = basePtr + y * baseStride;
 
-                for (int x = 0; x < outW; x++)
+                for (var x = 0; x < outW; x++)
                 {
-                    int p = x * 3;
+                    var p = x * 3;
 
-                    float rBase = row[p + 0];
-                    float gBase = row[p + 1];
-                    float bBase = row[p + 2];
+                    var rBase = row[p + 0];
+                    var gBase = row[p + 1];
+                    var bBase = row[p + 2];
 
-                    float rRes = outTensor[0, last, 0, y, x];
-                    float gRes = outTensor[0, last, 1, y, x];
-                    float bRes = outTensor[0, last, 2, y, x];
+                    var rRes = outTensor[0, last, 0, y, x];
+                    var gRes = outTensor[0, last, 1, y, x];
+                    var bRes = outTensor[0, last, 2, y, x];
 
-                    float r = Math.Clamp(rBase + rRes, 0f, 1f);
-                    float g = Math.Clamp(gBase + gRes, 0f, 1f);
-                    float b = Math.Clamp(bBase + bRes, 0f, 1f);
+                    var r = Math.Clamp(rBase + rRes, 0f, 1f);
+                    var g = Math.Clamp(gBase + gRes, 0f, 1f);
+                    var b = Math.Clamp(bBase + bRes, 0f, 1f);
 
                     row[p + 0] = r;
                     row[p + 1] = g;

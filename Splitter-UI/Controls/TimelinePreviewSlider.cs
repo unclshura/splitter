@@ -193,7 +193,7 @@ public class TimelinePreviewSlider : Control, IDisposable
         }
 
         // Draw segments and previews
-        for (int i = 0; i < vm.Segments.Count; i++)
+        for (var i = 0; i < vm.Segments.Count; i++)
         {
             var seg = vm.Segments[i];
             var segRect = SegmentRectFor(seg);
@@ -215,7 +215,7 @@ public class TimelinePreviewSlider : Control, IDisposable
         }
 
         // Draw markers on top
-        for (int i = 0; i < vm.Segments.Count; i++)
+        for (var i = 0; i < vm.Segments.Count; i++)
         {
             var seg = vm.Segments[i];
             DrawMarker(dc, seg.Start, true);
@@ -266,11 +266,11 @@ public class TimelinePreviewSlider : Control, IDisposable
         if (vm == null || vm.DurationSeconds <= 0)
             return;
 
-        double stripY = (Bounds.Height - _segmentBarHeight) / 2;
-        double stripHeight = _segmentBarHeight;
+        var stripY = (Bounds.Height - _segmentBarHeight) / 2;
+        var stripHeight = _segmentBarHeight;
 
         double currentX = 0;
-        double endX = Bounds.Width;
+        var endX = Bounds.Width;
 
         var bmp = GetPreview(0);
         var noPreviewAvailable = bmp == null;
@@ -287,7 +287,7 @@ public class TimelinePreviewSlider : Control, IDisposable
         {
             while (currentX < endX)
             {
-                double posSec = PixelToSeconds(currentX);
+                var posSec = PixelToSeconds(currentX);
                 if (posSec < 0) posSec = 0;
                 if (posSec > vm.DurationSeconds) posSec = vm.DurationSeconds;
 
@@ -303,8 +303,8 @@ public class TimelinePreviewSlider : Control, IDisposable
                 }
 
                 // scale full frame to strip height
-                double scale = stripHeight / bmp.PixelSize.Height;
-                double tileWidth = bmp.PixelSize.Width * scale;
+                var scale = stripHeight / bmp.PixelSize.Height;
+                var tileWidth = bmp.PixelSize.Width * scale;
 
                 var src = new Rect(0, 0, bmp.PixelSize.Width, bmp.PixelSize.Height);
                 var dst = new Rect(currentX, stripY, tileWidth, stripHeight);
@@ -322,22 +322,22 @@ public class TimelinePreviewSlider : Control, IDisposable
         if (vm == null || vm.Segments.Count == 0)
             return;
 
-        double stripY = (Bounds.Height - _segmentBarHeight) / 2;
-        double stripHeight = _segmentBarHeight;
+        var stripY = (Bounds.Height - _segmentBarHeight) / 2;
+        var stripHeight = _segmentBarHeight;
 
         var gapBrush = new SolidColorBrush(Color.FromArgb(190, 80, 80, 80)); 
 
         double lastEnd = 0;
 
-        for (int i = 0; i < vm.Segments.Count; i++)
+        for (var i = 0; i < vm.Segments.Count; i++)
         {
             var seg = vm.Segments[i];
 
             if (seg.Start > lastEnd)
             {
-                double gapLeft = SecondsToPixel(lastEnd);
-                double gapRight = SecondsToPixel(seg.Start);
-                double w = gapRight - gapLeft;
+                var gapLeft = SecondsToPixel(lastEnd);
+                var gapRight = SecondsToPixel(seg.Start);
+                var w = gapRight - gapLeft;
 
                 if (w > 0)
                     dc.FillRectangle(gapBrush, new Rect(gapLeft, stripY, w, stripHeight));
@@ -349,9 +349,9 @@ public class TimelinePreviewSlider : Control, IDisposable
         // tail gap
         if (lastEnd < vm.DurationSeconds)
         {
-            double gapLeft = SecondsToPixel(lastEnd);
-            double gapRight = SecondsToPixel(vm.DurationSeconds);
-            double w = gapRight - gapLeft;
+            var gapLeft = SecondsToPixel(lastEnd);
+            var gapRight = SecondsToPixel(vm.DurationSeconds);
+            var w = gapRight - gapLeft;
 
             if (w > 0)
                 dc.FillRectangle(gapBrush, new Rect(gapLeft, stripY, w, stripHeight));
@@ -367,20 +367,20 @@ public class TimelinePreviewSlider : Control, IDisposable
         if (vm.OverrideTargetDuration <= 0)
             return;
 
-        double stripY = (Bounds.Height - _segmentBarHeight) / 2;
-        double stripHeight = _segmentBarHeight;
+        var stripY = (Bounds.Height - _segmentBarHeight) / 2;
+        var stripHeight = _segmentBarHeight;
 
         var overBrush = new SolidColorBrush(Color.FromArgb(128, 255, 0, 0)); // 50% red
 
         foreach (var seg in vm.Segments)
         {
-            double length = seg.End - seg.Start;
+            var length = seg.End - seg.Start;
             if (length <= vm.OverrideTargetDuration)
                 continue;
 
-            double left = SecondsToPixel(seg.Start);
-            double right = SecondsToPixel(seg.End);
-            double w = right - left;
+            var left = SecondsToPixel(seg.Start);
+            var right = SecondsToPixel(seg.End);
+            var w = right - left;
 
             if (w > 0)
                 dc.FillRectangle(overBrush, new Rect(left, stripY, w, stripHeight));
@@ -479,7 +479,7 @@ public class TimelinePreviewSlider : Control, IDisposable
         var lineTop = top + _markerTriangleSize + 2;
         var lineBottom = lineTop + _markerLineHeight;
 
-        double midY = top + _markerTriangleSize / 2.0;
+        var midY = top + _markerTriangleSize / 2.0;
 
         var tri = new StreamGeometry();
         using (var ctx = tri.Open())
@@ -653,10 +653,10 @@ public class TimelinePreviewSlider : Control, IDisposable
         if (vm == null)
             return;
 
-        double pos = vm.SliderLiveValue;
+        var pos = vm.SliderLiveValue;
 
-        int idx = -1;
-        for (int i = 0; i < vm.Segments.Count; i++)
+        var idx = -1;
+        for (var i = 0; i < vm.Segments.Count; i++)
         {
             var s = vm.Segments[i];
             if (pos >= s.Start && pos <= s.End)
@@ -704,7 +704,7 @@ public class TimelinePreviewSlider : Control, IDisposable
         if (vm == null) 
             return;
 
-        double sec = PixelToSeconds(p.X);
+        var sec = PixelToSeconds(p.X);
         sec = Math.Max(0, Math.Min(vm.DurationSeconds, sec));
 
         _isInternalSliderUpdate = true;
@@ -798,13 +798,13 @@ public class TimelinePreviewSlider : Control, IDisposable
         if (vm == null)
             return new HitResult(HitType.None, -1);
 
-        double topRegion = Bounds.Height / 4.0;
+        var topRegion = Bounds.Height / 4.0;
 
-        for (int i = 0; i < vm.Segments.Count; i++)
+        for (var i = 0; i < vm.Segments.Count; i++)
         {
             var seg = vm.Segments[i];
-            double startX = SecondsToPixel(seg.Start);
-            double endX   = SecondsToPixel(seg.End);
+            var startX = SecondsToPixel(seg.Start);
+            var endX   = SecondsToPixel(seg.End);
 
             // marker hit only in top 1/4
             if (p.Y >= 0 && p.Y <= topRegion)
