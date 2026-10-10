@@ -20,6 +20,8 @@ public partial class JobViewModel : ObservableObject
     [ObservableProperty] private Bitmap?       _thumbnail;
     [ObservableProperty] private double        _sliderLiveValue;
     [ObservableProperty] private double        _positionSeconds;
+    [ObservableProperty] private bool          _isPlaying;
+    [ObservableProperty] private int            _playbackSkipFrames;
 
     public string InputFile       => Job.InputFile;
     public double DurationSeconds => Probe?.Duration ?? 0;
@@ -60,6 +62,12 @@ public partial class JobViewModel : ObservableObject
     private readonly DispatcherTimer               _debounceTimer;
     private readonly Func<string, IObjectTracker>  _trackerFactory;
     private readonly ILogger                       _log;
+    private readonly IBufferPool _bufferPool;
+    private readonly IMatToBitmapConverter _bitmapConverter;
+    private readonly Func<string, VideoInfo, TimeSpan, int?, IFrameStream> _frameStreamFactory;
+    private CancellationTokenSource? _playbackCts;
+    private Task? _playbackTask;
+    private IFrameStream? _frameStream;
 
     public string FileName => Path.GetFileName(Job.InputFile);
 
@@ -153,12 +161,22 @@ public partial class JobViewModel : ObservableObject
     public float DetectAbove              { get => Job.DetectAbove;            set { _f.Forward(value); Task.Run(CreatePreview); } }
     public ulong? DetectId                { get => Job.DetectId;               set { _f.Forward(value); Task.Run(CreatePreview); } }
 
-    public JobViewModel(SingleJob job, IThumbnailService thumbnails, Func<string, IObjectTracker> trackerFactory, ILogger log)
+    public JobViewModel(
+        SingleJob job,
+        IThumbnailService thumbnails,
+        Func<string, IObjectTracker> trackerFactory,
+        ILogger log,
+        IBufferPool bufferPool,
+        IMatToBitmapConverter bitmapConverter,
+        Func<string, VideoInfo, TimeSpan, int?, IFrameStream> frameStreamFactory)
     {
         _f               = new ViewModelForwarder<SingleJob>(job, this.OnPropertyChanged);
         _thumbnails      = thumbnails;
         _trackerFactory  = trackerFactory;
         _log             = log;
+        _bufferPool = bufferPool;
+        _bitmapConverter = bitmapConverter;
+        _frameStreamFactory = frameStreamFactory;
 
         ParametersList.Add(new ParameterEntry("DropoutToleranceFrames"      , ""));
         ParametersList.Add(new ParameterEntry("EmaFactor"                   , ""));
@@ -235,44 +253,48 @@ public partial class JobViewModel : ObservableObject
 
             Preview      = new PreviewData(frame, [], null, Job.GravitateTo, pos, Job.Rotate);
 
-            var tracker = _trackerFactory(Job.Detect ?? "");
-            var j = new SingleTask
-            (
-                Job             : Job,
-                Info            : Probe,
-                OutputFileName  : "preview.jpg",
-                SegmentIndex    : 0,
-                TotalSegments   : 1,
-                SegmentStart    : PositionSeconds,
-                SegmentLength   : 1, // 1 second segment for detection
-                ProcessorFactory: _ => throw new NotImplementedException()
-            );
-
-            var (detections, primaryDetection) = tracker.SelectTrackedObject(j, frame.ToMatContinuous(), j.Job.GravitateTo);
-
-            Rect? crop = null;
-            var w = Probe.Width;
-            var h = Probe.Height;
-
-            var cropWidth  = Job.Crop?.width  ?? CommandLine.DefaultW;
-            var cropHeight = Job.Crop?.height ?? CommandLine.DefaultH;
-
-            var p = primaryDetection?.Center ?? new Point2f(w * Job.GravitateTo.X, h * Job.GravitateTo.Y);
-
-            var cx = p.X - cropWidth  / 2f;
-            var cy = p.Y - cropHeight / 2f;
-
-            var r = new Rect(cx, cy, cropWidth, cropHeight);
-
-            crop = ClampCrop(r, w, h);
-
-            Preview = new PreviewData(frame, detections ?? [], crop, Job.GravitateTo, pos, Job.Rotate);
+            Preview = BuildPreviewData(frame, pos);
             OnPropertyChanged(nameof(SegmentDuration));
         }
         catch (Exception ex)
         {
             _log.LogError($"Error creating preview for {FileName}: {ex.Message}");
         }
+    }
+
+    private PreviewData BuildPreviewData(Bitmap frame, TimeSpan pos)
+    {
+        var probe = Probe ?? throw new InvalidOperationException("Video information is unavailable.");
+        var tracker = _trackerFactory(Job.Detect ?? "");
+        var j = new SingleTask
+        (
+            Job             : Job,
+            Info            : probe,
+            OutputFileName  : "preview.jpg",
+            SegmentIndex    : 0,
+            TotalSegments   : 1,
+            SegmentStart    : pos.TotalSeconds,
+            SegmentLength   : 1,
+            ProcessorFactory: _ => throw new NotImplementedException()
+        );
+
+        var (detections, primaryDetection) = tracker.SelectTrackedObject(j, frame.ToMatContinuous(), j.Job.GravitateTo);
+
+        var w = probe.Width;
+        var h = probe.Height;
+
+        var cropWidth  = Job.Crop?.width  ?? CommandLine.DefaultW;
+        var cropHeight = Job.Crop?.height ?? CommandLine.DefaultH;
+
+        var p = primaryDetection?.Center ?? new Point2f(w * Job.GravitateTo.X, h * Job.GravitateTo.Y);
+
+        var cx = p.X - cropWidth  / 2f;
+        var cy = p.Y - cropHeight / 2f;
+
+        var r = new Rect(cx, cy, cropWidth, cropHeight);
+
+        var crop = ClampCrop(r, w, h);
+        return new PreviewData(frame, detections ?? [], crop, Job.GravitateTo, pos, Job.Rotate);
     }
 
     private static Rect ClampCrop(Rect r, float w, float h)
@@ -356,7 +378,102 @@ public partial class JobViewModel : ObservableObject
 
     private void PlayPreview()
     {
-        // Implementation for playing preview
+        if (IsPlaying)
+            StopPlayback();
+        else
+            StartPlayback();
+    }
+
+    private void StartPlayback()
+    {
+        if (Probe is not { Fps: > 0, Duration: > 0 } probe)
+            return;
+
+        _playbackCts?.Dispose();
+        var playbackCts = new CancellationTokenSource();
+        _playbackCts = playbackCts;
+        IsPlaying = true;
+        _playbackTask = Task.Run(() => PlaybackAsync(probe, playbackCts));
+    }
+
+    private async Task PlaybackAsync(VideoInfo probe, CancellationTokenSource playbackCts)
+    {
+        var cancellationToken = playbackCts.Token;
+        var startPosition = Math.Clamp(PositionSeconds, 0, probe.Duration);
+        var position = startPosition;
+        try
+        {
+            _frameStream = _frameStreamFactory(Job.InputFile, probe, TimeSpan.FromSeconds(startPosition), Job.Rotate);
+            using var entry = _bufferPool.Get(probe.Width, probe.Height);
+
+            while (position < probe.Duration &&
+                   await _frameStream.ReadNextFrameAsync(entry.Bgr, cancellationToken).ConfigureAwait(false))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var frame = _bitmapConverter.Convert(entry.Bgr, probe.Width, probe.Height);
+                var preview = BuildPreviewData(frame, TimeSpan.FromSeconds(position));
+
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    Preview = preview;
+                    PositionSeconds = position;
+                    SliderLiveValue = position;
+                }, DispatcherPriority.Render);
+
+                var framesToAdvance = Math.Max(0, PlaybackSkipFrames) + 1;
+                position += framesToAdvance / probe.Fps;
+
+                for (var i = 1; i < framesToAdvance; i++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (!await _frameStream.ReadNextFrameAsync(entry.Bgr, cancellationToken).ConfigureAwait(false))
+                        return;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            _log.LogError($"Error playing preview for {FileName}: {ex.Message}");
+        }
+        finally
+        {
+            _frameStream?.Dispose();
+            _frameStream = null;
+            if (ReferenceEquals(_playbackCts, playbackCts))
+                await Dispatcher.UIThread.InvokeAsync(() => IsPlaying = false);
+        }
+    }
+
+    private void StopPlayback()
+    {
+        var playbackCts = _playbackCts;
+        if (playbackCts is null)
+            return;
+
+        playbackCts.Cancel();
+        _frameStream?.Dispose();
+        IsPlaying = false;
+        _ = CompletePlaybackStopAsync(playbackCts, _playbackTask);
+    }
+
+    private async Task CompletePlaybackStopAsync(CancellationTokenSource playbackCts, Task? playbackTask)
+    {
+        if (playbackTask is not null)
+            await playbackTask.ConfigureAwait(false);
+
+        if (!ReferenceEquals(_playbackCts, playbackCts))
+            return;
+
+        _playbackCts = null;
+        _playbackTask = null;
+        playbackCts.Dispose();
+        await CreatePreview().ConfigureAwait(false);
     }
 
     private int GetCurrentSegment()
@@ -377,22 +494,26 @@ public partial class JobViewModel : ObservableObject
 
     partial void OnSliderLiveValueChanged(double value)
     {
-        // Restart debounce timer on every slider update
         _debounceTimer.Stop();
+        if (IsPlaying)
+            return;
+
         _debounceTimer.Start();
     }
 
     private void DebounceTimerTick(object? sender, EventArgs e)
     {
         _debounceTimer.Stop();
+        if (IsPlaying)
+            return;
 
-        // Commit the final value
         PositionSeconds = SliderLiveValue;
     }
 
     partial void OnPositionSecondsChanged(double value)
     {
-        Task.Run(CreatePreview);
+        if (!IsPlaying)
+            Task.Run(CreatePreview);
     }
 
     public async Task<Avalonia.Media.Imaging.Bitmap?> GetThumbnail(double positionSec)

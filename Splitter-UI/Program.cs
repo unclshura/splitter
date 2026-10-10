@@ -56,6 +56,9 @@ internal sealed class Program
         // Domain services (your pipeline)
         services.AddTransient<IFileProbeService,    FileProbeService>();
         services.AddTransient<IThumbnailService,    ThumbnailService>();
+        services.AddTransient<Func<string, VideoInfo, TimeSpan, int?, IFrameStream>>(x =>
+            (file, probe, start, rotate) =>
+                new FrameStreamService(file, probe, start, probe.Width, probe.Height, rotate));
         services.AddSingleton<IAutoDecisionService, AutoDecisionService>();
 
         services.AddSingleton<IFileJobFactory, FileJobFactory>();

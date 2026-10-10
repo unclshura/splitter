@@ -4,11 +4,16 @@
     xmlns:vm="clr-namespace:Splitter_UI.ViewModels"
     xmlns:local="clr-namespace:Splitter_UI.Views"
     xmlns:controls="clr-namespace:Splitter_UI.Controls"
+xmlns:conv="clr-namespace:Splitter_UI.Converters"
     x:Class="Splitter_UI.Views.PreviewPane"
     x:DataType="vm:PreviewPaneViewModel">
 
+    <UserControl.Resources>
+        <conv:BoolInvertConverter x:Key="BoolInvertConverter" />
+    </UserControl.Resources>
+
     <Border Background="#202020" Padding="10">
-        <Grid RowDefinitions="*,Auto">
+        <Grid RowDefinitions="*,Auto,Auto">
 
             <local:PreviewCanvas
                 Grid.Row="0"
@@ -19,27 +24,8 @@
                 DetectAbove="{Binding DetectAbove, Mode=TwoWay}"
                 DetectId="{Binding Selected.DetectId, Mode=TwoWay}"
                 />
-<!--
             <Grid Grid.Row="1"
-                  ColumnDefinitions="Auto"
-                  Margin="0,10,0,0">
-                <Button Grid.Column="1"
-                        HorizontalAlignment="Left"
-                        Width="24" Height="24"
-                        Padding="0"
-                        Margin="0,0,5,0"
-                        Command="{Binding Selected.PlayPreviewCommand}">
-                    <TextBlock FontFamily="{StaticResource FontAwesome}"
-                               Text="&#xf04b;"
-                               FontSize="12"
-                               VerticalAlignment="Center"
-                               HorizontalAlignment="Center" />
-                </Button>
-
-            </Grid>
--->
-            <Grid Grid.Row="1"
-                  ColumnDefinitions="Auto,*,Auto"
+                  ColumnDefinitions="Auto,*,Auto,Auto"
                   Margin="0,10,0,0">
 
                 <Button Grid.Column="0"
@@ -57,9 +43,32 @@
 
                 <controls:TimelinePreviewSlider Grid.Column="1"
                     ViewModel="{Binding Selected}"
-                    Margin="5,0,5,0" />
+                    Margin="5,0,5,0"
+                    IsEnabled="{Binding Selected.IsPlaying, Converter={StaticResource BoolInvertConverter}}" />
 
                 <Button Grid.Column="2"
+                        HorizontalAlignment="Right"
+                        Width="24" Height="24"
+                        Padding="0"
+                        Margin="5,0,0,0"
+                        Command="{Binding Selected.PlayPreviewCommand}">
+                    <Grid>
+                        <TextBlock FontFamily="{StaticResource FontAwesome}"
+                                   Text="&#xf04b;"
+                                   FontSize="12"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   IsVisible="{Binding Selected.IsPlaying, Converter={StaticResource BoolInvertConverter}}" />
+                        <TextBlock FontFamily="{StaticResource FontAwesome}"
+                                   Text="&#xf04d;"
+                                   FontSize="12"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   IsVisible="{Binding Selected.IsPlaying}" />
+                    </Grid>
+                </Button>
+
+                <Button Grid.Column="3"
                         HorizontalAlignment="Right"
                         Width="24" Height="24"
                         Padding="0"
