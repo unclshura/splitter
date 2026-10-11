@@ -262,10 +262,11 @@ public partial class JobViewModel : ObservableObject
         }
     }
 
-    private PreviewData BuildPreviewData(Bitmap frame, TimeSpan pos)
+    private PreviewData BuildPreviewData(Bitmap frame, TimeSpan pos, IObjectTracker? argTracker = null, CameraController? camera = null, KalmanTracker? kalman = null)
     {
         var probe = Probe ?? throw new InvalidOperationException("Video information is unavailable.");
-        var tracker = _trackerFactory(Job.Detect ?? "");
+        var tracker = argTracker ?? _trackerFactory(Job.Detect ?? "");
+
         var j = new SingleTask
         (
             Job             : Job,
@@ -278,7 +279,8 @@ public partial class JobViewModel : ObservableObject
             ProcessorFactory: _ => throw new NotImplementedException()
         );
 
-        var (detections, primaryDetection) = tracker.SelectTrackedObject(j, frame.ToMatContinuous(), j.Job.GravitateTo);
+        var (detections, primaryDetection) = tracker.SelectTrackedObject(j, frame.ToMatContinuous(), kalman?.LastMeasurement ?? j.Job.GravitateTo);
+        camera?.Update(primaryDetection);
 
         var w = probe.Width;
         var h = probe.Height;
@@ -286,7 +288,8 @@ public partial class JobViewModel : ObservableObject
         var cropWidth  = Job.Crop?.width  ?? CommandLine.DefaultW;
         var cropHeight = Job.Crop?.height ?? CommandLine.DefaultH;
 
-        var p = primaryDetection?.Center ?? new Point2f(w * Job.GravitateTo.X, h * Job.GravitateTo.Y);
+
+        var p = camera?.CameraCenter ?? primaryDetection?.Center ?? new Point2f(w * Job.GravitateTo.X, h * Job.GravitateTo.Y);
 
         var cx = p.X - cropWidth  / 2f;
         var cy = p.Y - cropHeight / 2f;
@@ -294,7 +297,8 @@ public partial class JobViewModel : ObservableObject
         var r = new Rect(cx, cy, cropWidth, cropHeight);
 
         var crop = ClampCrop(r, w, h);
-        return new PreviewData(frame, detections ?? [], crop, Job.GravitateTo, pos, Job.Rotate);
+
+        return new PreviewData(frame, detections ?? [], crop, Job.GravitateTo, pos, Job.Rotate, camera?.CameraCenter);
     }
 
     private static Rect ClampCrop(Rect r, float w, float h)
@@ -398,9 +402,22 @@ public partial class JobViewModel : ObservableObject
 
     private async Task PlaybackAsync(VideoInfo probe, CancellationTokenSource playbackCts)
     {
+        if (Probe is not { Fps: > 0, Duration: > 0 } )
+            return;
+
         var cancellationToken = playbackCts.Token;
-        var startPosition = Math.Clamp(PositionSeconds, 0, probe.Duration);
-        var position = startPosition;
+        var startPosition     = Math.Clamp(PositionSeconds, 0, probe.Duration);
+        var position          = startPosition;
+
+        var w  = Probe.Width;
+        var h  = Probe.Height;
+        var cw = Job.Crop!.Value.width;
+        var ch = Job.Crop!.Value.height;
+
+        var tracker = _trackerFactory(Job.Detect ?? "");
+        var kalman  = new KalmanTracker();
+        var camera  = new CameraController(w, h, cw, ch, kalman, Job);
+
         try
         {
             _frameStream = _frameStreamFactory(Job.InputFile, probe, TimeSpan.FromSeconds(startPosition), Job.Rotate);
@@ -410,8 +427,9 @@ public partial class JobViewModel : ObservableObject
                    await _frameStream.ReadNextFrameAsync(entry.Bgr, cancellationToken).ConfigureAwait(false))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var frame = _bitmapConverter.Convert(entry.Bgr, probe.Width, probe.Height);
-                var preview = BuildPreviewData(frame, TimeSpan.FromSeconds(position));
+
+                var frame   = _bitmapConverter.Convert(entry.Bgr, probe.Width, probe.Height);
+                var preview = BuildPreviewData(frame, TimeSpan.FromSeconds(position), tracker, camera, kalman);
 
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {

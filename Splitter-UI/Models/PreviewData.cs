@@ -6,10 +6,11 @@ public class PreviewData
     public IReadOnlyList<DetectedPerson> DetectedBoxes { get; }
     public Rect? CropRect                                { get; }
     public Point2f GravitateTo                           { get; }
+    public Point2f? CameraCenter                         { get; }
     public TimeSpan Position                             { get; }
     public int? Rotate                                   { get; }
 
-    public PreviewData(Avalonia.Media.Imaging.Bitmap? frame, IReadOnlyList<DetectedPerson> boxes, Rect? crop, Point2f gravitateTo, TimeSpan position, int? rotate)
+    public PreviewData(Avalonia.Media.Imaging.Bitmap? frame, IReadOnlyList<DetectedPerson> boxes, Rect? crop, Point2f gravitateTo, TimeSpan position, int? rotate, Point2f? cameraCenter = null)
     {
         Frame         = frame;
         DetectedBoxes = boxes;
@@ -17,6 +18,7 @@ public class PreviewData
         GravitateTo   = gravitateTo;
         Position      = position;
         Rotate        = rotate;
+        CameraCenter  = cameraCenter;
     }
 
 }

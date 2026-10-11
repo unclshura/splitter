@@ -14,7 +14,6 @@ public sealed class CameraController
     private readonly int _cropWidth;
     private readonly int _cropHeight;
     private readonly KalmanTracker _kalman;
-    private readonly SingleJob _cmd;
     private int _dropoutCounter;
 
     // --- Dropout tolerance ---
@@ -46,15 +45,14 @@ public sealed class CameraController
         _cropWidth    = cropWidth;
         _cropHeight   = cropHeight;
         _kalman       = kalman;
-        _cmd          = cmd;
-        DefaultCenter = new Point2f(videoWidth * _cmd.GravitateTo.X, videoHeight * _cmd.GravitateTo.Y);
+        DefaultCenter = new Point2f(videoWidth * cmd.GravitateTo.X, videoHeight * cmd.GravitateTo.Y);
         _cameraCenter = DefaultCenter;
         _state        = TrackState.Tracking;
 
-    cmd.Override(ref _dropoutToleranceFrames, "DropoutToleranceFrames");
-    cmd.Override(ref _emaFactor,              "EmaFactor");
-    cmd.Override(ref _cameraEasing,           "CameraEasing");
-    cmd.Override(ref _lostFreezeFrames,       "LostFreezeFrames");
+        cmd.Override(ref _dropoutToleranceFrames, "DropoutToleranceFrames");
+        cmd.Override(ref _emaFactor,              "EmaFactor");
+        cmd.Override(ref _cameraEasing,           "CameraEasing");
+        cmd.Override(ref _lostFreezeFrames,       "LostFreezeFrames");
 
         _kalman.Reset(_cameraCenter);
     }

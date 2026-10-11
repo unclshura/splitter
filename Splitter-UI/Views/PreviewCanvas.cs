@@ -501,11 +501,41 @@ public sealed class PreviewCanvas : Control
         double scale,
         int rotate,
         double pixelAspect)
-    {
-        var g = GravitateTo;
+        => RenderDot(context, GravitateTo, 10, Brushes.Yellow, rawW, rawH, offsetX, offsetY, scale, rotate, pixelAspect);
 
-        var px = g.X * rawW;
-        var py = g.Y * rawH;
+    private void RenderCameraCenter(
+        DrawingContext context,
+        PreviewData preview,
+        double rawW, double rawH,
+        double offsetX, double offsetY,
+        double scale,
+        int rotate,
+        double pixelAspect)
+    {
+        if ( Preview == null || Preview.CameraCenter == null)
+            return;
+
+        var p = new Point2f(
+            Preview.CameraCenter.Value.X / (float)rawW,
+            Preview.CameraCenter.Value.Y / (float)rawH
+        );
+
+        RenderDot(context, p, 5, Brushes.BlueViolet, rawW, rawH, offsetX, offsetY, scale, rotate, pixelAspect);
+    }
+
+    private void RenderDot(
+        DrawingContext context,
+        Point2f point,
+        double radius,
+        IImmutableSolidColorBrush brush,
+        double rawW, double rawH,
+        double offsetX, double offsetY,
+        double scale,
+        int rotate,
+        double pixelAspect)
+    {
+        var px = point.X * rawW;
+        var py = point.Y * rawH;
 
         var (sx, sy) = TransformPoint(
             px, py,
@@ -515,13 +545,10 @@ public sealed class PreviewCanvas : Control
             rotate,
             pixelAspect);
 
-        const double radius = 10;
-
         var circle = new EllipseGeometry(
             new Rect(sx - radius, sy - radius, radius * 2, radius * 2));
 
-        var pen = new Pen(Brushes.Yellow, 2);
-        var brush = Brushes.Yellow;
+        var pen = new Pen(brush, 2);
 
         context.DrawGeometry(brush, pen, circle);
     }
@@ -664,7 +691,8 @@ public sealed class PreviewCanvas : Control
 
         RenderDetectedBoxes(context, preview, rawW, rawH, offsetX, offsetY, scale, rotate, pixelAspect);
         RenderCropRectangle(context, preview, rawW, rawH, offsetX, offsetY, scale, rotate, pixelAspect);
-        RenderGravitateTo(context, preview, rawW, rawH, offsetX, offsetY, scale, rotate, pixelAspect);
-        RenderDetectAbove(context, preview, rawW, rawH, offsetX, offsetY, scale, rotate, pixelAspect);
+        RenderGravitateTo  (context, preview, rawW, rawH, offsetX, offsetY, scale, rotate, pixelAspect);
+        RenderCameraCenter (context, preview, rawW, rawH, offsetX, offsetY, scale, rotate, pixelAspect);
+        RenderDetectAbove  (context, preview, rawW, rawH, offsetX, offsetY, scale, rotate, pixelAspect);
     }
 }

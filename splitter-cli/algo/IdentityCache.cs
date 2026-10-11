@@ -5,69 +5,105 @@ public sealed class IdentityCache
     private sealed class Identity
     {
         public ulong Id;
-        public float[] Embedding = null!; // EMA
-        public int Samples;
+        public readonly List<float[]> Gallery = [];
     }
 
-    private readonly List<Identity> _ids = new();
+    private readonly List<Identity> _ids = [];
     private ulong _nextId = 1;
 
-    private const float _emaAlpha = 0.2f;
+    private const int MaxGallerySize = 20;
 
-    public ulong ResolveId(float[] embedding, float threshold)
+    public ulong ResolveId(
+        float[] embedding,
+        float threshold)
     {
-        if (_ids.Count == 0)
-            return CreateNew(embedding);
-
         var bestIndex = -1;
-        var bestDist = float.MaxValue;
+        var bestDistance = float.MaxValue;
 
         for (var i = 0; i < _ids.Count; i++)
         {
-            var d = CosineDistance(_ids[i].Embedding, embedding);
-            if (d < bestDist)
+            var distance =
+                BestDistance(
+                    embedding,
+                    _ids[i].Gallery);
+
+            if (distance < bestDistance)
             {
-                bestDist = d;
+                bestDistance = distance;
                 bestIndex = i;
             }
         }
 
-        if (bestDist <= threshold)
+        if (bestIndex >= 0 &&
+            bestDistance <= threshold)
         {
-            UpdateEma(_ids[bestIndex].Embedding, embedding);
-            _ids[bestIndex].Samples++;
+            AddEmbedding(
+                _ids[bestIndex],
+                embedding);
+
             return _ids[bestIndex].Id;
         }
 
-        return CreateNew(embedding);
+        return CreateIdentity(embedding);
     }
 
-    private ulong CreateNew(float[] embedding)
+    private ulong CreateIdentity(float[] embedding)
     {
         var id = _nextId++;
 
-        _ids.Add(new Identity
+        var identity = new Identity
         {
-            Id        = id,
-            Embedding = embedding.ToArray(),
-            Samples   = 1
-        });
+            Id = id
+        };
+
+        identity.Gallery.Add(
+            embedding.ToArray());
+
+        _ids.Add(identity);
 
         return id;
     }
 
-    private static float CosineDistance(float[] a, float[] b)
+    private static void AddEmbedding(
+        Identity identity,
+        float[] embedding)
     {
-        var dot = 0f;
+        identity.Gallery.Add(
+            embedding.ToArray());
+
+        if (identity.Gallery.Count > MaxGallerySize)
+            identity.Gallery.RemoveAt(0);
+    }
+
+    private static float BestDistance(
+        float[] embedding,
+        List<float[]> gallery)
+    {
+        var best = float.MaxValue;
+
+        foreach (var candidate in gallery)
+        {
+            var d =
+                CosineDistance(
+                    embedding,
+                    candidate);
+
+            if (d < best)
+                best = d;
+        }
+
+        return best;
+    }
+
+    private static float CosineDistance(
+        float[] a,
+        float[] b)
+    {
+        float dot = 0;
+
         for (var i = 0; i < a.Length; i++)
             dot += a[i] * b[i];
 
         return 1f - dot;
-    }
-
-    private static void UpdateEma(float[] ema, float[] v)
-    {
-        for (var i = 0; i < ema.Length; i++)
-            ema[i] = ema[i] * (1 - _emaAlpha) + v[i] * _emaAlpha;
     }
 }
